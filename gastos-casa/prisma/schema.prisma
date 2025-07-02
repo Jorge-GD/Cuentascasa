@@ -3,10 +3,87 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../app/generated/prisma"
 }
 
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model Cuenta {
+  id          String   @id @default(cuid())
+  nombre      String   // "Gastos Jorge", "Gastos Violeta", "Gastos Casa"
+  tipo        String   // "personal" | "compartida"
+  color       String   // Para identificación visual
+  createdAt   DateTime @default(now())
+  
+  movimientos Movimiento[]
+  reglas      ReglaCategorizacion[]
+}
+
+model Movimiento {
+  id            String   @id @default(cuid())
+  fecha         DateTime
+  descripcion   String
+  importe       Float
+  saldo         Float?
+  
+  // Categorías originales de ING
+  categoriaING     String?
+  subcategoriaING  String?
+  
+  // Categorías personalizadas
+  categoria        String
+  subcategoria     String?
+  
+  // Metadata
+  esManual         Boolean @default(false)
+  fechaImportacion DateTime @default(now())
+  
+  cuenta           Cuenta @relation(fields: [cuentaId], references: [id])
+  cuentaId         String
+  
+  etiquetas        Etiqueta[]
+  
+  @@index([fecha, cuentaId])
+  @@index([categoria])
+}
+
+model Categoria {
+  id           String   @id @default(cuid())
+  nombre       String   @unique
+  color        String
+  icono        String?
+  presupuesto  Float?   // Presupuesto mensual
+  
+  subcategorias Subcategoria[]
+}
+
+model Subcategoria {
+  id           String   @id @default(cuid())
+  nombre       String
+  categoriaId  String
+  categoria    Categoria @relation(fields: [categoriaId], references: [id])
+}
+
+model ReglaCategorizacion {
+  id              String   @id @default(cuid())
+  nombre          String
+  patron          String   // Regex o texto a buscar
+  tipoCoincidencia String  // "contiene" | "empieza" | "termina" | "regex"
+  categoria       String
+  subcategoria    String?
+  prioridad       Int      // Para resolver conflictos
+  activa          Boolean  @default(true)
+  
+  cuenta          Cuenta?  @relation(fields: [cuentaId], references: [id])
+  cuentaId        String?  // null = aplica a todas las cuentas
+}
+
+model Etiqueta {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  color       String
+  
+  movimientos Movimiento[]
 }
