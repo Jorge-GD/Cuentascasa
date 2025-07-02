@@ -1,4 +1,6 @@
 import './globals.css'
+import { Header } from '@/components/layout/header'
+import { Sidebar } from '@/components/layout/sidebar'
 
 export const metadata = {
   title: 'Gastos Casa',
@@ -12,7 +14,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <div className="relative flex min-h-screen flex-col">
+          <Header />
+          <div className="flex-1 flex">
+            <aside className="hidden w-64 flex-col border-r bg-background md:flex">
+              <Sidebar />
+            </aside>
+            <main className="flex-1 overflow-y-auto">
+              <div className="container mx-auto py-6">
+                {children}
+              </div>
+            </main>
+          </div>
+        </div>
+      </body>
     </html>
   )
 }
