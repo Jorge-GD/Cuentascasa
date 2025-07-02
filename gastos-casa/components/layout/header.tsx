@@ -2,6 +2,7 @@
 
 import { Bell, Search, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CuentaSelectorCompact } from '@/components/cuentas/cuenta-selector'
 
 export function Header() {
   return (
@@ -16,6 +17,7 @@ export function Header() {
         </div>
         
         <div className="flex flex-1 items-center justify-end space-x-4">
+          <CuentaSelectorCompact />
           <nav className="flex items-center space-x-1">
             <Button variant="ghost" size="icon">
               <Search className="h-4 w-4" />

@@ -1,0 +1,162 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Plus, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { CuentaCard } from '@/components/cuentas/cuenta-card'
+import { useCuentaStore } from '@/lib/stores/cuentaStore'
+import type { Cuenta } from '@/lib/types/database'
+
+export default function CuentasPage() {
+  const { 
+    cuentas, 
+    cuentaActiva, 
+    isLoading, 
+    error, 
+    fetchCuentas, 
+    deleteCuenta 
+  } = useCuentaStore()
+
+  const [editingCuenta, setEditingCuenta] = useState<Cuenta | null>(null)
+
+  useEffect(() => {
+    fetchCuentas()
+  }, [fetchCuentas])
+
+  const handleEdit = (cuenta: Cuenta) => {
+    setEditingCuenta(cuenta)
+    // TODO: Abrir modal o navegar a página de edición
+    console.log('Editar cuenta:', cuenta)
+  }
+
+  const handleDelete = async (cuenta: Cuenta) => {
+    if (window.confirm(`¿Estás seguro de que quieres eliminar la cuenta "${cuenta.nombre}"?`)) {
+      const success = await deleteCuenta(cuenta.id)
+      if (!success) {
+        // El error ya se maneja en el store
+        console.error('Error deleting cuenta')
+      }
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Cuentas</h1>
+            <p className="text-muted-foreground">
+              Gestiona tus cuentas bancarias
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/cuentas/nueva">
+              <Plus className="w-4 h-4 mr-2" />
+              Nueva Cuenta
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Cuentas</h1>
+            <p className="text-muted-foreground">
+              Gestiona tus cuentas bancarias
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/cuentas/nueva">
+              <Plus className="w-4 h-4 mr-2" />
+              Nueva Cuenta
+            </Link>
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center space-y-3">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+            <h3 className="text-lg font-medium">Error al cargar cuentas</h3>
+            <p className="text-muted-foreground">{error}</p>
+            <Button onClick={() => fetchCuentas()}>
+              Reintentar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Cuentas</h1>
+          <p className="text-muted-foreground">
+            Gestiona tus cuentas bancarias y selecciona la activa
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/cuentas/nueva">
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva Cuenta
+          </Link>
+        </Button>
+      </div>
+
+      {cuentas.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="space-y-3">
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+              <Plus className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium">No tienes cuentas</h3>
+            <p className="text-muted-foreground">
+              Crea tu primera cuenta para empezar a gestionar tus gastos
+            </p>
+            <Button asChild>
+              <Link href="/cuentas/nueva">
+                Crear primera cuenta
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {cuentas.map((cuenta) => (
+              <CuentaCard
+                key={cuenta.id}
+                cuenta={cuenta}
+                isActive={cuentaActiva?.id === cuenta.id}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground">
+            Total: {cuentas.length} cuenta{cuentas.length !== 1 ? 's' : ''}
+            {cuentaActiva && (
+              <span className="ml-2">
+                • Activa: <strong>{cuentaActiva.nombre}</strong>
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
