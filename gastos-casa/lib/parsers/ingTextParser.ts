@@ -336,3 +336,9 @@ export class INGTextParser {
     return metadata
   }
 }
+
+// Export convenience function
+export function parseINGText(text: string): ParserResult {
+  const parser = new INGTextParser()
+  return parser.parse(text)
+}

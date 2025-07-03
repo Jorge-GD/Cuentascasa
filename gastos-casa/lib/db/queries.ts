@@ -98,6 +98,13 @@ export async function getMovimientosByDateRange(
   })
 }
 
+export async function getMovimientosByCuenta(cuentaId: string): Promise<Movimiento[]> {
+  return prisma.movimiento.findMany({
+    where: { cuentaId },
+    orderBy: { fecha: 'desc' }
+  })
+}
+
 export async function getMovimientosByCategoria(
   cuentaId: string,
   categoria: string
@@ -153,7 +160,11 @@ export async function updateMovimiento(id: string, data: Partial<CreateMovimient
 
 export async function deleteMovimiento(id: string): Promise<Movimiento> {
   return prisma.movimiento.delete({
-    where: { id }
+    where: { id },
+    include: {
+      cuenta: true,
+      etiquetas: true
+    }
   })
 }
 

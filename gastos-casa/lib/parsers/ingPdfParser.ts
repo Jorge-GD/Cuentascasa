@@ -211,3 +211,9 @@ export class INGPdfParser {
     return {}
   }
 }
+
+// Export convenience function
+export async function parseINGPdf(pdfBuffer: Buffer): Promise<ParserResult> {
+  const parser = new INGPdfParser()
+  return parser.parse(pdfBuffer)
+}

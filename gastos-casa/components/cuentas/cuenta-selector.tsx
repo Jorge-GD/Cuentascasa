@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { ChevronDown, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
 
 interface CuentaSelectorProps {
@@ -62,17 +62,18 @@ export function CuentaSelector({ className, showLabel = true }: CuentaSelectorPr
       <div className="relative">
         <Select
           value={cuentaActiva?.id || ''}
-          onChange={(e) => handleChange(e.target.value)}
-          className="min-w-48"
+          onValueChange={handleChange}
         >
-          <option value="" disabled>
-            Seleccionar cuenta
-          </option>
-          {cuentas.map((cuenta) => (
-            <option key={cuenta.id} value={cuenta.id}>
-              {cuenta.nombre} ({cuenta.tipo})
-            </option>
-          ))}
+          <SelectTrigger className="min-w-48">
+            <SelectValue placeholder="Seleccionar cuenta" />
+          </SelectTrigger>
+          <SelectContent>
+            {cuentas.map((cuenta) => (
+              <SelectItem key={cuenta.id} value={cuenta.id}>
+                {cuenta.nombre} ({cuenta.tipo})
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       </div>
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TipoCuenta } from '@/lib/types/database'
 import type { Cuenta } from '@/lib/types/database'
 
@@ -106,13 +106,16 @@ export function CuentaForm({ cuenta, onSubmit, onCancel, isLoading }: CuentaForm
           <div className="space-y-2">
             <Label htmlFor="tipo">Tipo de cuenta</Label>
             <Select
-              id="tipo"
               value={formData.tipo}
-              onChange={(e) => handleChange('tipo', e.target.value)}
-              className={errors.tipo ? 'border-red-500' : ''}
+              onValueChange={(value) => handleChange('tipo', value)}
             >
-              <option value={TipoCuenta.PERSONAL}>Personal</option>
-              <option value={TipoCuenta.COMPARTIDA}>Compartida</option>
+              <SelectTrigger className={errors.tipo ? 'border-red-500' : ''}>
+                <SelectValue placeholder="Selecciona el tipo de cuenta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TipoCuenta.PERSONAL}>Personal</SelectItem>
+                <SelectItem value={TipoCuenta.COMPARTIDA}>Compartida</SelectItem>
+              </SelectContent>
             </Select>
             {errors.tipo && (
               <p className="text-sm text-red-600">{errors.tipo}</p>
@@ -127,16 +130,19 @@ export function CuentaForm({ cuenta, onSubmit, onCancel, isLoading }: CuentaForm
                 style={{ backgroundColor: formData.color }}
               />
               <Select
-                id="color"
                 value={formData.color}
-                onChange={(e) => handleChange('color', e.target.value)}
-                className={errors.color ? 'border-red-500' : ''}
+                onValueChange={(value) => handleChange('color', value)}
               >
-                {coloresPredefinidos.map((color) => (
-                  <option key={color.value} value={color.value}>
-                    {color.label}
-                  </option>
-                ))}
+                <SelectTrigger className={errors.color ? 'border-red-500' : ''}>
+                  <SelectValue placeholder="Selecciona un color" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coloresPredefinidos.map((color) => (
+                    <SelectItem key={color.value} value={color.value}>
+                      {color.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             {errors.color && (
