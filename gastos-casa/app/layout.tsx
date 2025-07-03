@@ -1,6 +1,7 @@
 import './globals.css'
 import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata = {
   title: 'Gastos Casa',
@@ -28,6 +29,7 @@ export default function RootLayout({
             </main>
           </div>
         </div>
+        <Toaster />
       </body>
     </html>
   )

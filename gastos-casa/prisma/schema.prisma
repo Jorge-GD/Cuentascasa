@@ -47,6 +47,9 @@ model Movimiento {
   
   @@index([fecha, cuentaId])
   @@index([categoria])
+  @@index([cuentaId, fecha])
+  @@index([importe])
+  @@index([fechaImportacion])
 }
 
 model Categoria {
@@ -78,6 +81,9 @@ model ReglaCategorizacion {
   
   cuenta          Cuenta?  @relation(fields: [cuentaId], references: [id])
   cuentaId        String?  // null = aplica a todas las cuentas
+  
+  @@index([activa, prioridad])
+  @@index([cuentaId])
 }
 
 model Etiqueta {
