@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AlertCircle, Palette, DollarSign } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { CategoriaWithSubcategorias } from '@/lib/types/database'
@@ -178,16 +179,21 @@ export function CategoriaForm({ categoria, onSave, onCancel }: CategoriaFormProp
         
         <div className="flex flex-wrap gap-2 mb-3">
           {PRESET_COLORS.map((presetColor) => (
-            <button
-              key={presetColor}
-              type="button"
-              onClick={() => handleColorChange(presetColor)}
-              className={`w-8 h-8 rounded-full border-2 transition-all ${
-                formData.color === presetColor ? 'border-gray-400 scale-110' : 'border-gray-200'
-              }`}
-              style={{ backgroundColor: presetColor }}
-              title={presetColor}
-            />
+            <Tooltip key={presetColor}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => handleColorChange(presetColor)}
+                  className={`w-8 h-8 rounded-full border-2 transition-all ${
+                    formData.color === presetColor ? 'border-gray-400 scale-110' : 'border-gray-200'
+                  }`}
+                  style={{ backgroundColor: presetColor }}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{presetColor}</p>
+              </TooltipContent>
+            </Tooltip>
           ))}
         </div>
 

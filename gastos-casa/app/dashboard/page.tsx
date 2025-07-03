@@ -1,14 +1,35 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MetricCard } from '@/components/dashboard/metric-card'
-import { SpendingChart } from '@/components/dashboard/spending-chart'
-import { CategoryPieChart } from '@/components/charts/category-pie-chart'
-import { MonthlyTrendChart } from '@/components/charts/monthly-trend-chart'
-import { AccountComparisonChart } from '@/components/charts/account-comparison-chart'
-import { BudgetAlerts } from '@/components/presupuestos/budget-alerts'
+import { LoadingSkeleton, ChartSkeleton } from '@/components/common/loading-states'
+
+// Simplified imports to avoid build issues
+const SpendingChart = dynamic(() => import('@/components/dashboard/spending-chart'), {
+  loading: () => <ChartSkeleton />,
+  ssr: false
+})
+const CategoryPieChart = dynamic(() => import('@/components/charts/category-pie-chart'), {
+  loading: () => <ChartSkeleton />,
+  ssr: false
+})
+const MonthlyTrendChart = dynamic(() => import('@/components/charts/monthly-trend-chart'), {
+  loading: () => <ChartSkeleton />,
+  ssr: false
+})
+const AccountComparisonChart = dynamic(() => import('@/components/charts/account-comparison-chart'), {
+  loading: () => <ChartSkeleton />,
+  ssr: false
+})
+const BudgetAlerts = dynamic(() => import('@/components/presupuestos/budget-alerts'), {
+  loading: () => <LoadingSkeleton />,
+  ssr: false
+})
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
 import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'

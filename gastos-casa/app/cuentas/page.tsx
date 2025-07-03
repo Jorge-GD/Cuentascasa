@@ -1,11 +1,15 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CuentaCard } from '@/components/cuentas/cuenta-card'
+import { NoCuentasEmpty } from '@/components/ui/empty-states'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
+import { toastUtils } from '@/lib/utils/toast'
 import type { Cuenta } from '@/lib/types/database'
 
 export default function CuentasPage() {
@@ -26,17 +30,18 @@ export default function CuentasPage() {
 
   const handleEdit = (cuenta: Cuenta) => {
     setEditingCuenta(cuenta)
-    // TODO: Abrir modal o navegar a página de edición
-    console.log('Editar cuenta:', cuenta)
+    // Navegar a página de edición específica
+    window.location.href = `/cuentas/${cuenta.id}/editar`
   }
 
   const handleDelete = async (cuenta: Cuenta) => {
-    if (window.confirm(`¿Estás seguro de que quieres eliminar la cuenta "${cuenta.nombre}"?`)) {
-      const success = await deleteCuenta(cuenta.id)
-      if (!success) {
-        // El error ya se maneja en el store
-        console.error('Error deleting cuenta')
-      }
+    const success = await deleteCuenta(cuenta.id)
+    if (success) {
+      toastUtils.app.deleteSuccess('Cuenta')
+    } else {
+      toastUtils.error('Error al eliminar la cuenta', {
+        description: 'No se pudo eliminar la cuenta. Inténtalo de nuevo.'
+      })
     }
   }
 
@@ -117,22 +122,7 @@ export default function CuentasPage() {
       </div>
 
       {cuentas.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="space-y-3">
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-              <Plus className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-medium">No tienes cuentas</h3>
-            <p className="text-muted-foreground">
-              Crea tu primera cuenta para empezar a gestionar tus gastos
-            </p>
-            <Button asChild>
-              <Link href="/cuentas/nueva">
-                Crear primera cuenta
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <NoCuentasEmpty onCreateNew={() => window.location.href = '/cuentas/nueva'} />
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

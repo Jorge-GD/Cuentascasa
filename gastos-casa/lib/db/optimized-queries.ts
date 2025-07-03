@@ -86,7 +86,7 @@ export class OptimizedQueries {
       transacciones,
       topCategorias: categorias.map(cat => ({
         categoria: cat.categoria,
-        total: Math.abs(cat._sum.importe || 0),
+        total: Math.abs(cat._sum?.importe || 0),
         transacciones: cat._count,
         porcentaje: 0 // Se calcula después
       }))

@@ -1,5 +1,6 @@
 import { toast } from 'sonner'
 import { CheckCircle, AlertTriangle, XCircle, Info, Loader2 } from 'lucide-react'
+import React from 'react'
 
 interface ToastOptions {
   description?: string
@@ -16,7 +17,7 @@ export const toastUtils = {
       description: options?.description,
       action: options?.action,
       duration: options?.duration || 4000,
-      icon: CheckCircle,
+      icon: React.createElement(CheckCircle),
     })
   },
 
@@ -25,7 +26,7 @@ export const toastUtils = {
       description: options?.description,
       action: options?.action,
       duration: options?.duration || 6000,
-      icon: XCircle,
+      icon: React.createElement(XCircle),
     })
   },
 
@@ -34,7 +35,7 @@ export const toastUtils = {
       description: options?.description,
       action: options?.action,
       duration: options?.duration || 5000,
-      icon: AlertTriangle,
+      icon: React.createElement(AlertTriangle),
     })
   },
 
@@ -43,14 +44,14 @@ export const toastUtils = {
       description: options?.description,
       action: options?.action,
       duration: options?.duration || 4000,
-      icon: Info,
+      icon: React.createElement(Info),
     })
   },
 
   loading: (message: string, options?: { description?: string }) => {
     return toast.loading(message, {
       description: options?.description,
-      icon: Loader2,
+      icon: React.createElement(Loader2),
     })
   },
 
@@ -63,7 +64,7 @@ export const toastUtils = {
     }: {
       loading: string
       success: (data: T) => string
-      error: (error: any) => string
+      error: (error: unknown) => string
     }
   ) => {
     return toast.promise(promise, {

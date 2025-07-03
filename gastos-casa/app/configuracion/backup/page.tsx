@@ -206,7 +206,7 @@ export default function BackupPage() {
         // Limpiar formulario
         setArchivoImport(null)
         setBackupInfo(null)
-        if (event.target) {
+        if (event?.target) {
           (event.target as HTMLInputElement).value = ''
         }
       } else {

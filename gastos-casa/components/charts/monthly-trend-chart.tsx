@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useCallback } from 'react'
 import { 
   AreaChart, 
   Area, 
@@ -17,8 +18,8 @@ interface MonthlyTrendChartProps {
   height?: number
 }
 
-export function MonthlyTrendChart({ data, height = 300 }: MonthlyTrendChartProps) {
-  const CustomTooltip = ({ active, payload, label }: any) => {
+function MonthlyTrendChartComponent({ data, height = 300 }: MonthlyTrendChartProps) {
+  const CustomTooltip = useCallback(({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload
       return (
@@ -42,7 +43,7 @@ export function MonthlyTrendChart({ data, height = 300 }: MonthlyTrendChartProps
       )
     }
     return null
-  }
+  }, [])
 
   if (!data || !data.datos || data.datos.length === 0) {
     return (
@@ -134,3 +135,25 @@ export function MonthlyTrendChart({ data, height = 300 }: MonthlyTrendChartProps
     </div>
   )
 }
+
+// Memoizar el gráfico de tendencias
+export const MonthlyTrendChart = memo(MonthlyTrendChartComponent, (prevProps, nextProps) => {
+  if (prevProps.height !== nextProps.height) return false
+  if (!prevProps.data && !nextProps.data) return true
+  if (!prevProps.data || !nextProps.data) return false
+  
+  // Comparar datos de tendencias
+  const prevDatos = prevProps.data.datos || []
+  const nextDatos = nextProps.data.datos || []
+  
+  if (prevDatos.length !== nextDatos.length) return false
+  
+  return prevDatos.every((item, idx) => {
+    const nextItem = nextDatos[idx]
+    return nextItem &&
+           item.fecha === nextItem.fecha &&
+           item.gastos === nextItem.gastos &&
+           item.ingresos === nextItem.ingresos &&
+           item.balance === nextItem.balance
+  })
+})

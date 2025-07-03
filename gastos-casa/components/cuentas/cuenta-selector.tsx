@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { ChevronDown, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
 
 interface CuentaSelectorProps {
@@ -79,11 +80,17 @@ export function CuentaSelector({ className, showLabel = true }: CuentaSelectorPr
 
       {cuentaActiva && (
         <div className="flex items-center space-x-2">
-          <div 
-            className="w-3 h-3 rounded-full border border-gray-300"
-            style={{ backgroundColor: cuentaActiva.color }}
-            title={`Color: ${cuentaActiva.color}`}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div 
+                className="w-3 h-3 rounded-full border border-gray-300 cursor-help"
+                style={{ backgroundColor: cuentaActiva.color }}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Color: {cuentaActiva.color}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       )}
     </div>
@@ -91,15 +98,29 @@ export function CuentaSelector({ className, showLabel = true }: CuentaSelectorPr
 }
 
 // Versión compacta para header/navegación
-export function CuentaSelectorCompact({ className }: { className?: string }) {
-  const { cuentaActiva, cuentas, selectCuenta } = useCuentaStore()
+export function CuentaSelectorCompact({ className, onChangeCuenta }: { 
+  className?: string
+  onChangeCuenta?: () => void 
+}) {
+  const { cuentaActiva, cuentas } = useCuentaStore()
 
   if (!cuentaActiva || cuentas.length === 0) {
     return null
   }
 
+  const handleClick = () => {
+    if (onChangeCuenta) {
+      onChangeCuenta()
+    }
+  }
+
   return (
-    <div className={`flex items-center space-x-2 ${className}`}>
+    <Button 
+      variant="ghost" 
+      size="sm" 
+      onClick={handleClick}
+      className={`flex items-center space-x-2 h-8 px-2 hover:bg-muted ${className}`}
+    >
       <div 
         className="w-3 h-3 rounded-full border border-gray-300"
         style={{ backgroundColor: cuentaActiva.color }}
@@ -109,12 +130,8 @@ export function CuentaSelectorCompact({ className }: { className?: string }) {
       </span>
       
       {cuentas.length > 1 && (
-        <Button variant="ghost" size="sm" asChild>
-          <a href="/cuentas">
-            <ChevronDown className="w-3 h-3" />
-          </a>
-        </Button>
+        <ChevronDown className="w-3 h-3 opacity-50" />
       )}
-    </div>
+    </Button>
   )
 }

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Edit2, Trash2, Settings, ArrowUp, ArrowDown } from 'lucide-react'
 import type { ReglaCategorizacion } from '@/lib/types/database'
 
@@ -183,15 +184,19 @@ export function ReglaList({ reglas, isLoading, onEdit, onDelete, onToggle }: Reg
                     <Edit2 className="h-4 w-4" />
                   </Button>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(regla.id)}
-                    className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-                    title="Eliminar regla"
+                  <DeleteConfirmDialog
+                    itemName={regla.nombre || `Regla ${regla.prioridad}`}
+                    itemType="regla"
+                    onConfirm={() => onDelete(regla.id)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </DeleteConfirmDialog>
                 </div>
               </div>
             </div>

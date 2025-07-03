@@ -3,6 +3,8 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Edit2, Trash2, DollarSign, Tag } from 'lucide-react'
 import type { CategoriaWithSubcategorias } from '@/lib/types/database'
 
@@ -122,25 +124,35 @@ export function CategoriaList({ categorias, isLoading, onEdit, onDelete }: Categ
 
               {/* Acciones */}
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(categoria)}
-                  className="h-8 w-8 p-0"
-                  title="Editar categoría"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEdit(categoria)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Editar categoría</p>
+                  </TooltipContent>
+                </Tooltip>
                 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onDelete(categoria.id)}
-                  className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-                  title="Eliminar categoría"
+                <DeleteConfirmDialog
+                  itemName={categoria.nombre}
+                  itemType="categoría"
+                  onConfirm={() => onDelete(categoria.id)}
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </DeleteConfirmDialog>
               </div>
             </div>
           </CardContent>

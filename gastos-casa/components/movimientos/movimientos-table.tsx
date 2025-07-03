@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, memo, Suspense } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,6 +12,9 @@ import {
   type SortingState,
   type PaginationState,
 } from '@tanstack/react-table'
+import { VirtualizedTable } from './virtualized-table'
+import { TableSkeleton } from '@/components/common/loading-states'
+import { NoSearchResultsEmpty } from '@/components/ui/empty-states'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ArrowUpDown, ChevronDown, Edit, MoreHorizontal, Trash2, Eye } from 'lucide-react'
@@ -34,15 +37,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { Movimiento } from '@/lib/types/database'
 
 interface MovimientosTableProps {
   movimientos: Movimiento[]
   onEditMovimiento: (movimiento: Movimiento) => void
+  onDeleteMovimiento?: (movimientoId: string) => void
   isLoading?: boolean
 }
 
-export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: MovimientosTableProps) {
+function MovimientosTableComponent({ movimientos, onEditMovimiento, onDeleteMovimiento, isLoading }: MovimientosTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'fecha', desc: true } // Default: newest first
   ])
@@ -51,18 +56,18 @@ export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: M
     pageSize: 25,
   })
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency: 'EUR'
     }).format(amount)
-  }
+  }, [])
 
-  const formatDate = (date: string | Date) => {
+  const formatDate = useCallback((date: string | Date) => {
     return format(new Date(date), 'dd/MM/yyyy', { locale: es })
-  }
+  }, [])
 
-  const getCategoriaColor = (categoria: string) => {
+  const getCategoriaColor = useCallback((categoria: string) => {
     const colors: Record<string, string> = {
       'Alimentación': 'bg-green-100 text-green-800',
       'Transporte': 'bg-blue-100 text-blue-800',
@@ -76,7 +81,7 @@ export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: M
       'Suscripciones': 'bg-indigo-100 text-indigo-800',
     }
     return colors[categoria] || 'bg-gray-100 text-gray-800'
-  }
+  }, [])
 
   const columns = useMemo<ColumnDef<Movimiento>[]>(() => [
     {
@@ -231,22 +236,27 @@ export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: M
                 Ver detalles
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => {
-                  // TODO: Implement delete confirmation
-                  console.log('Delete movimiento:', movimiento.id)
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </DropdownMenuItem>
+              {onDeleteMovimiento && (
+                <DeleteConfirmDialog
+                  itemName={`Movimiento de ${formatCurrency(movimiento.importe)}`}
+                  itemType="movimiento"
+                  onConfirm={() => onDeleteMovimiento(movimiento.id)}
+                >
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </DropdownMenuItem>
+                </DeleteConfirmDialog>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )
       },
     },
-  ], [onEditMovimiento])
+  ], [onEditMovimiento, formatCurrency, formatDate, getCategoriaColor])
 
   const table = useReactTable({
     data: movimientos,
@@ -267,24 +277,34 @@ export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: M
   const currentPage = table.getState().pagination.pageIndex + 1
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="animate-pulse">
-          <div className="h-10 bg-muted rounded mb-3"></div>
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-muted rounded mb-2"></div>
-          ))}
-        </div>
-      </div>
-    )
+    return <TableSkeleton rows={8} />
   }
 
   if (movimientos.length === 0) {
+    return <NoSearchResultsEmpty />
+  }
+
+  // Usar virtualización para listas grandes (>500 elementos)
+  if (movimientos.length > 500) {
     return (
-      <div className="text-center py-8">
-        <div className="text-muted-foreground">
-          No se encontraron movimientos con los filtros aplicados.
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Lista virtualizada para mejor rendimiento ({movimientos.length} movimientos)
+          </div>
         </div>
+        <Suspense fallback={
+          <div className="h-[600px] flex items-center justify-center">
+            <div className="animate-pulse text-muted-foreground">
+              Cargando tabla virtualizada...
+            </div>
+          </div>
+        }>
+          <VirtualizedTable 
+            movimientos={movimientos} 
+            onEditMovimiento={onEditMovimiento}
+          />
+        </Suspense>
       </div>
     )
   }
@@ -414,3 +434,24 @@ export function MovimientosTable({ movimientos, onEditMovimiento, isLoading }: M
     </div>
   )
 }
+
+// Memoizar el componente para evitar re-renders innecesarios
+export const MovimientosTable = memo(MovimientosTableComponent, (prevProps, nextProps) => {
+  // Comparación personalizada para optimizar re-renders
+  if (prevProps.isLoading !== nextProps.isLoading) return false
+  if (prevProps.onEditMovimiento !== nextProps.onEditMovimiento) return false
+  
+  // Comparación de movimientos por longitud y referencia
+  if (prevProps.movimientos.length !== nextProps.movimientos.length) return false
+  if (prevProps.movimientos !== nextProps.movimientos) {
+    // Comparación profunda solo si las referencias son diferentes
+    return prevProps.movimientos.every((mov, idx) => 
+      mov.id === nextProps.movimientos[idx]?.id &&
+      mov.fecha === nextProps.movimientos[idx]?.fecha &&
+      mov.importe === nextProps.movimientos[idx]?.importe &&
+      mov.categoria === nextProps.movimientos[idx]?.categoria
+    )
+  }
+  
+  return true
+})

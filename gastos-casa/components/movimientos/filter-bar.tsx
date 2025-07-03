@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useDeferredValue, useMemo } from 'react'
 import { CalendarIcon, X, RotateCcw, Bookmark } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,31 +19,47 @@ interface FilterBarProps {
 
 export function FilterBar({ movimientos, onFiltersChange }: FilterBarProps) {
   const [filters, setFilters] = useState<MovimientoFilters>({})
+  const [searchText, setSearchText] = useState('')
   const [filterManager] = useState(() => new MovimientoFilterManager(movimientos))
   const [filterOptions, setFilterOptions] = useState(() => filterManager.getFilterOptions())
-  const [activeFiltersCount, setActiveFiltersCount] = useState(0)
+  
+  // Usar useDeferredValue para optimizar el filtrado
+  const deferredSearchText = useDeferredValue(searchText)
+  const deferredFilters = useDeferredValue(filters)
+  const deferredMovimientos = useDeferredValue(movimientos)
 
-  // Update filter manager when movimientos change
-  useEffect(() => {
-    const newManager = new MovimientoFilterManager(movimientos)
-    setFilterOptions(newManager.getFilterOptions())
-  }, [movimientos])
+  // Combinar el texto de búsqueda diferido con los filtros
+  const finalFilters = useMemo(() => ({
+    ...deferredFilters,
+    descripcion: deferredSearchText || undefined
+  }), [deferredFilters, deferredSearchText])
 
-  // Apply filters whenever they change
-  useEffect(() => {
-    const newManager = new MovimientoFilterManager(movimientos)
-    const filteredMovimientos = newManager.applyFilters(filters)
-    onFiltersChange(filters, filteredMovimientos)
-
-    // Count active filters
-    const count = Object.entries(filters).filter(([key, value]) => {
+  // Memoizar el cálculo de filtros activos (incluyendo búsqueda)
+  const activeFiltersCount = useMemo(() => {
+    let count = Object.entries(deferredFilters).filter(([key, value]) => {
       if (value === null || value === undefined || value === '') return false
       if (Array.isArray(value) && value.length === 0) return false
       if (key === 'tipoMovimiento' && value === 'todos') return false
       return true
     }).length
-    setActiveFiltersCount(count)
-  }, [filters, movimientos, onFiltersChange])
+    
+    // Añadir búsqueda si existe
+    if (deferredSearchText) count++
+    return count
+  }, [deferredFilters, deferredSearchText])
+
+  // Update filter manager when movimientos change (with debouncing)
+  useEffect(() => {
+    const newManager = new MovimientoFilterManager(deferredMovimientos)
+    setFilterOptions(newManager.getFilterOptions())
+  }, [deferredMovimientos])
+
+  // Apply filters whenever they change (with debouncing)
+  useEffect(() => {
+    const newManager = new MovimientoFilterManager(deferredMovimientos)
+    const filteredMovimientos = newManager.applyFilters(finalFilters)
+    onFiltersChange(finalFilters, filteredMovimientos)
+  }, [finalFilters, deferredMovimientos, onFiltersChange])
 
   const updateFilter = (key: keyof MovimientoFilters, value: any) => {
     setFilters(prev => ({
@@ -54,6 +70,7 @@ export function FilterBar({ movimientos, onFiltersChange }: FilterBarProps) {
 
   const clearFilters = () => {
     setFilters({})
+    setSearchText('')
   }
 
   const applyPreset = (presetName: string) => {
@@ -140,12 +157,12 @@ export function FilterBar({ movimientos, onFiltersChange }: FilterBarProps) {
             </Badge>
           )}
           
-          {filters.descripcion && (
+          {deferredSearchText && (
             <Badge variant="secondary" className="gap-1">
-              Texto: "{filters.descripcion}"
+              Texto: "{deferredSearchText}"
               <X 
                 className="h-3 w-3 cursor-pointer" 
-                onClick={() => removeFilter('descripcion')}
+                onClick={() => setSearchText('')}
               />
             </Badge>
           )}
@@ -265,8 +282,8 @@ export function FilterBar({ movimientos, onFiltersChange }: FilterBarProps) {
             id="descripcion"
             type="text"
             placeholder="Buscar texto..."
-            value={filters.descripcion || ''}
-            onChange={(e) => updateFilter('descripcion', e.target.value)}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
           />
         </div>
 

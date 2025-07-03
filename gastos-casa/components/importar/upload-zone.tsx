@@ -20,7 +20,7 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
   const [error, setError] = useState<string | null>(null)
   const [uploadMethod, setUploadMethod] = useState<'file' | 'text'>('file')
 
-  const processData = useCallback(async (data: string | File, type: 'pdf' | 'text') => {
+  const processData = useCallback(async (data: string | File, type: 'pdf' | 'xlsx' | 'text') => {
     setError(null)
     
     try {
@@ -30,6 +30,9 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
       if (type === 'pdf' && data instanceof File) {
         formData.append('file', data)
         formData.append('type', 'pdf')
+      } else if (type === 'xlsx' && data instanceof File) {
+        formData.append('file', data)
+        formData.append('type', 'xlsx')
       } else if (type === 'text' && typeof data === 'string') {
         formData.append('text', data)
         formData.append('type', 'text')
@@ -57,8 +60,15 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
     if (file) {
       if (file.type === 'application/pdf') {
         processData(file, 'pdf')
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel' ||
+        file.name.toLowerCase().endsWith('.xlsx') ||
+        file.name.toLowerCase().endsWith('.xls')
+      ) {
+        processData(file, 'xlsx')
       } else {
-        setError('Solo se permiten archivos PDF')
+        setError('Solo se permiten archivos PDF y XLSX/XLS')
       }
     }
   }, [processData])
@@ -66,7 +76,9 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf']
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls']
     },
     maxFiles: 1,
     disabled: isLoading
@@ -84,7 +96,7 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
     <div className="space-y-4">
       <Tabs value={uploadMethod} onValueChange={(value) => setUploadMethod(value as 'file' | 'text')}>
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="file">Subir PDF</TabsTrigger>
+          <TabsTrigger value="file">Subir Archivo</TabsTrigger>
           <TabsTrigger value="text">Pegar Texto</TabsTrigger>
         </TabsList>
         
@@ -102,10 +114,10 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
               <Upload className="h-10 w-10 text-muted-foreground" />
               <div>
                 <p className="text-lg font-medium">
-                  {isDragActive ? 'Suelta el archivo aquí' : 'Sube tu extracto PDF'}
+                  {isDragActive ? 'Suelta el archivo aquí' : 'Sube tu extracto bancario'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Arrastra y suelta un archivo PDF de ING o haz clic para seleccionar
+                  Arrastra y suelta un archivo PDF o XLSX de ING o haz clic para seleccionar
                 </p>
               </div>
             </div>

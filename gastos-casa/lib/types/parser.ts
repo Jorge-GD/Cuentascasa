@@ -11,7 +11,7 @@ export interface MovimientoRaw {
 // Result of parsing operation
 export interface ParserResult {
   movimientos: MovimientoRaw[]
-  formatoDetectado: 'ING_PDF' | 'ING_TEXT' | 'MANUAL'
+  formatoDetectado: 'ING_PDF' | 'ING_TEXT' | 'ING_XLSX' | 'MANUAL'
   errores: string[]
   metadata?: {
     fechaInicio?: string

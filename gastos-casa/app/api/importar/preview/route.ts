@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseINGPdf } from '@/lib/parsers/ingPdfParser'
 import { parseINGText } from '@/lib/parsers/ingTextParser'
+import { INGXlsxParser } from '@/lib/parsers/ingXlsxParser'
 import { CategorizationEngine } from '@/lib/categorization/engine'
 import { DuplicateDetector } from '@/lib/utils/duplicateDetection'
 import { getMovimientosByCuenta } from '@/lib/db/queries'
@@ -43,6 +44,42 @@ export async function POST(request: NextRequest) {
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const parseResult = await parseINGPdf(buffer)
+      
+      if (parseResult.errores.length > 0) {
+        return NextResponse.json(
+          { success: false, error: parseResult.errores.join('; ') },
+          { status: 400 }
+        )
+      }
+
+      rawMovimientos = parseResult.movimientos
+    } else if (type === 'xlsx') {
+      const file = formData.get('file') as File
+      if (!file) {
+        return NextResponse.json(
+          { success: false, error: 'No se proporcionó archivo XLSX' },
+          { status: 400 }
+        )
+      }
+
+      // Validar tipo de archivo XLSX
+      const isXlsxFile = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                        file.type === 'application/vnd.ms-excel' ||
+                        file.name.toLowerCase().endsWith('.xlsx') ||
+                        file.name.toLowerCase().endsWith('.xls')
+      
+      if (!isXlsxFile) {
+        return NextResponse.json(
+          { success: false, error: 'El archivo debe ser un XLSX/XLS' },
+          { status: 400 }
+        )
+      }
+
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      
+      const xlsxParser = new INGXlsxParser()
+      const parseResult = await xlsxParser.parse(buffer)
       
       if (parseResult.errores.length > 0) {
         return NextResponse.json(

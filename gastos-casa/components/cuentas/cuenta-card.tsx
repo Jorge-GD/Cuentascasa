@@ -3,6 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog'
+// import { AnimatedCard, PressableDiv } from '@/components/ui/animations'
 import { Edit, Trash2, CreditCard } from 'lucide-react'
 import type { Cuenta } from '@/lib/types/database'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
@@ -25,8 +27,8 @@ export function CuentaCard({ cuenta, onEdit, onDelete, isActive }: CuentaCardPro
   const tipoLabel = cuenta.tipo === 'personal' ? 'Personal' : 'Compartida'
 
   return (
-    <Card className={`transition-all hover:shadow-md ${isActive ? 'ring-2 ring-primary' : ''}`}>
-      <CardHeader className="pb-3">
+    <Card className={`transition-all card-hover ${isActive ? 'ring-2 ring-primary' : ''}`}>
+        <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
             <div 
@@ -78,14 +80,19 @@ export function CuentaCard({ cuenta, onEdit, onDelete, isActive }: CuentaCardPro
             )}
             
             {onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onDelete(cuenta)}
-                className="text-red-600 hover:text-red-800"
+              <DeleteConfirmDialog
+                itemName={cuenta.nombre}
+                itemType="cuenta"
+                onConfirm={() => onDelete(cuenta)}
               >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </DeleteConfirmDialog>
             )}
           </div>
         </div>

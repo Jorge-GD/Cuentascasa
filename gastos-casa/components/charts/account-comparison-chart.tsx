@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useCallback } from 'react'
 import { 
   BarChart, 
   Bar, 
@@ -18,8 +19,8 @@ interface AccountComparisonChartProps {
   height?: number
 }
 
-export function AccountComparisonChart({ data, height = 400 }: AccountComparisonChartProps) {
-  const CustomTooltip = ({ active, payload, label }: any) => {
+function AccountComparisonChartComponent({ data, height = 400 }: AccountComparisonChartProps) {
+  const CustomTooltip = useCallback(({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const cuenta = data.cuentas.find(c => c.nombre === label)
       if (!cuenta) return null
@@ -45,7 +46,7 @@ export function AccountComparisonChart({ data, height = 400 }: AccountComparison
       )
     }
     return null
-  }
+  }, [data.cuentas])
 
   if (!data || !data.cuentas || data.cuentas.length === 0) {
     return (
@@ -181,3 +182,34 @@ export function AccountComparisonChart({ data, height = 400 }: AccountComparison
     </div>
   )
 }
+
+// Memoizar el gráfico de comparación de cuentas
+export const AccountComparisonChart = memo(AccountComparisonChartComponent, (prevProps, nextProps) => {
+  if (prevProps.height !== nextProps.height) return false
+  if (!prevProps.data && !nextProps.data) return true
+  if (!prevProps.data || !nextProps.data) return false
+  
+  // Comparar datos de cuentas
+  const prevCuentas = prevProps.data.cuentas || []
+  const nextCuentas = nextProps.data.cuentas || []
+  
+  if (prevCuentas.length !== nextCuentas.length) return false
+  
+  // Comparar totales
+  const prevTotales = prevProps.data.totales
+  const nextTotales = nextProps.data.totales
+  
+  if (prevTotales.gastos !== nextTotales.gastos ||
+      prevTotales.ingresos !== nextTotales.ingresos ||
+      prevTotales.balance !== nextTotales.balance) return false
+  
+  // Comparar cada cuenta
+  return prevCuentas.every((cuenta, idx) => {
+    const nextCuenta = nextCuentas[idx]
+    return nextCuenta &&
+           cuenta.id === nextCuenta.id &&
+           cuenta.gastos === nextCuenta.gastos &&
+           cuenta.ingresos === nextCuenta.ingresos &&
+           cuenta.balance === nextCuenta.balance
+  })
+})

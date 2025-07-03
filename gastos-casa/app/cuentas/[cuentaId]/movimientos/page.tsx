@@ -1,14 +1,20 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { Plus, Download, Filter } from 'lucide-react'
 import { MovimientosTable } from '@/components/movimientos/movimientos-table'
 import { FilterBar } from '@/components/movimientos/filter-bar'
 import { MovimientoModal } from '@/components/movimientos/movimiento-modal'
+import { LoadingStates } from '@/components/common/loading-states'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
+import { toastUtils } from '@/lib/utils/toast'
+import { format } from 'date-fns'
 import type { Movimiento } from '@/lib/types/database'
 import type { MovimientoFilters } from '@/lib/utils/filters'
 
@@ -124,20 +130,47 @@ export default function MovimientosPage({ params }: PageProps) {
   }
 
   const handleExportMovimientos = () => {
-    // TODO: Implement export functionality
-    console.log('Exporting movements...')
+    if (filteredMovimientos.length === 0) {
+      toastUtils.warning('No hay movimientos para exportar', {
+        description: 'Ajusta los filtros para incluir movimientos en la exportación'
+      })
+      return
+    }
+
+    try {
+      // Preparar datos para CSV
+      const csvData = filteredMovimientos.map(mov => ({
+        Fecha: format(new Date(mov.fecha), 'dd/MM/yyyy'),
+        Concepto: mov.descripcion,
+        Importe: mov.importe,
+        Categoria: mov.categoria || 'Sin categoría',
+        Tipo: mov.importe >= 0 ? 'Ingreso' : 'Gasto'
+      }))
+
+      // Crear CSV
+      const csvHeader = Object.keys(csvData[0]).join(',')
+      const csvRows = csvData.map(row => Object.values(row).join(','))
+      const csvContent = [csvHeader, ...csvRows].join('\n')
+
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `movimientos-${cuenta?.nombre || 'cuenta'}-${format(new Date(), 'yyyy-MM-dd')}.csv`
+      link.click()
+
+      toastUtils.success('Exportación completada', {
+        description: `Se exportaron ${filteredMovimientos.length} movimientos`
+      })
+    } catch (error) {
+      toastUtils.error('Error al exportar', {
+        description: 'No se pudo generar el archivo de exportación'
+      })
+    }
   }
 
   if (isLoading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-          <div className="h-64 bg-muted rounded"></div>
-        </div>
-      </div>
-    )
+    return <LoadingStates.Movimientos />
   }
 
   if (!cuenta) {
@@ -159,8 +192,16 @@ export default function MovimientosPage({ params }: PageProps) {
     )
   }
 
+  const breadcrumbItems = [
+    { label: 'Cuentas', href: '/cuentas' },
+    { label: cuenta.nombre, href: `/cuentas/${cuentaId}` },
+    { label: 'Movimientos', current: true }
+  ]
+
   return (
     <div className="container mx-auto py-6 space-y-6">
+      <Breadcrumb items={breadcrumbItems} />
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

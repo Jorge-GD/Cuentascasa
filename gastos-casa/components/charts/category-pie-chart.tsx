@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useCallback } from 'react'
 import { 
   PieChart, 
   Pie, 
@@ -33,8 +34,8 @@ const COLORS = [
   '#f59e0b', // amber-500
 ]
 
-export function CategoryPieChart({ data, height = 300 }: CategoryPieChartProps) {
-  const CustomTooltip = ({ active, payload }: any) => {
+function CategoryPieChartComponent({ data, height = 300 }: CategoryPieChartProps) {
+  const CustomTooltip = useCallback(({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (
@@ -53,9 +54,9 @@ export function CategoryPieChart({ data, height = 300 }: CategoryPieChartProps) 
       )
     }
     return null
-  }
+  }, [])
 
-  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, porcentaje }: any) => {
+  const CustomLabel = useCallback(({ cx, cy, midAngle, innerRadius, outerRadius, porcentaje }: any) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5
     const x = cx + radius * Math.cos(-midAngle * Math.PI / 180)
     const y = cy + radius * Math.sin(-midAngle * Math.PI / 180)
@@ -75,7 +76,7 @@ export function CategoryPieChart({ data, height = 300 }: CategoryPieChartProps) 
         {`${porcentaje.toFixed(0)}%`}
       </text>
     )
-  }
+  }, [])
 
   if (!data || data.length === 0) {
     return (
@@ -136,3 +137,19 @@ export function CategoryPieChart({ data, height = 300 }: CategoryPieChartProps) 
     </div>
   )
 }
+
+// Memoizar el gráfico para evitar re-renders costosos
+export const CategoryPieChart = memo(CategoryPieChartComponent, (prevProps, nextProps) => {
+  // Comparación optimizada para datos de gráfico
+  if (prevProps.height !== nextProps.height) return false
+  if (prevProps.data.length !== nextProps.data.length) return false
+  
+  // Comparación por referencia y valores clave
+  return prevProps.data.every((item, idx) => {
+    const nextItem = nextProps.data[idx]
+    return nextItem && 
+           item.categoria === nextItem.categoria &&
+           item.total === nextItem.total &&
+           item.porcentaje === nextItem.porcentaje
+  })
+})

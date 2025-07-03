@@ -1,11 +1,15 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { Plus } from 'lucide-react'
 import { CategoriaForm } from '@/components/categorias/categoria-form'
 import { CategoriaList } from '@/components/categorias/categoria-list'
+import { toastUtils } from '@/lib/utils/toast'
 import type { CategoriaWithSubcategorias } from '@/lib/types/database'
 
 export default function CategoriasConfigPage() {
@@ -46,10 +50,6 @@ export default function CategoriasConfigPage() {
   }
 
   const handleDeleteCategoria = async (categoriaId: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta categoría?')) {
-      return
-    }
-
     try {
       const response = await fetch(`/api/categorias/${categoriaId}`, {
         method: 'DELETE'
@@ -59,12 +59,17 @@ export default function CategoriasConfigPage() {
 
       if (result.success) {
         await fetchCategorias()
+        toastUtils.app.deleteSuccess('Categoría')
       } else {
-        alert(`Error: ${result.error}`)
+        toastUtils.error('Error al eliminar la categoría', {
+          description: result.error
+        })
       }
     } catch (error) {
       console.error('Error deleting categoria:', error)
-      alert('Error al eliminar la categoría')
+      toastUtils.error('Error al eliminar la categoría', {
+        description: 'No se pudo conectar con el servidor'
+      })
     }
   }
 
@@ -79,8 +84,14 @@ export default function CategoriasConfigPage() {
     setEditingCategoria(null)
   }
 
+  const breadcrumbItems = [
+    { label: 'Configuración', href: '/configuracion' },
+    { label: 'Categorías', current: true }
+  ]
+
   return (
     <div className="container mx-auto p-6 max-w-6xl">
+      <Breadcrumb items={breadcrumbItems} className="mb-6" />
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Configuración de Categorías</h1>
         <p className="text-muted-foreground mt-2">
