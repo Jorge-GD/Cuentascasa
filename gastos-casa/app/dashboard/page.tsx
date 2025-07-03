@@ -8,6 +8,7 @@ import { SpendingChart } from '@/components/dashboard/spending-chart'
 import { CategoryPieChart } from '@/components/charts/category-pie-chart'
 import { MonthlyTrendChart } from '@/components/charts/monthly-trend-chart'
 import { AccountComparisonChart } from '@/components/charts/account-comparison-chart'
+import { BudgetAlerts } from '@/components/presupuestos/budget-alerts'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
 import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -190,6 +191,9 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      {/* Alertas de Presupuesto */}
+      <BudgetAlerts cuentaId={cuentaActiva.id} compact={true} />
 
       {/* Gráficos principales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

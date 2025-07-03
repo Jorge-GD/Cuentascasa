@@ -1,4 +1,4 @@
-import { Home, CreditCard, Upload, Settings, BarChart3, FileText } from 'lucide-react'
+import { Home, CreditCard, Upload, Settings, BarChart3, FileText, Target } from 'lucide-react'
 
 export interface NavItem {
   title: string
@@ -52,6 +52,11 @@ export const mainNavigation: NavItem[] = [
         icon: FileText,
       },
       {
+        title: 'Presupuestos',
+        href: '/configuracion/presupuestos',
+        icon: Target,
+      },
+      {
         title: 'Backup',
         href: '/configuracion/backup',
         icon: FileText,
@@ -74,6 +79,7 @@ export const routes = {
     index: '/configuracion',
     categorias: '/configuracion/categorias',
     reglas: '/configuracion/reglas',
+    presupuestos: '/configuracion/presupuestos',
     backup: '/configuracion/backup',
   },
 } as const
