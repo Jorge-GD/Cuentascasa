@@ -10,15 +10,15 @@
 | **FASE 3** | UI Base y Sistema de Componentes | 3 días | ✅ Completada |
 | **FASE 4** | Gestión de Cuentas | 2 días | ✅ Completada |
 | **FASE 5** | Importación de Movimientos | 4 días | ✅ Completada |
-| **FASE 6** | Gestión de Movimientos | 3 días | ⏳ Pendiente |
-| **FASE 7** | Sistema de Categorías y Reglas | 4 días | ⏳ Pendiente |
-| **FASE 8** | Dashboard y Visualizaciones | 5 días | ⏳ Pendiente |
+| **FASE 6** | Gestión de Movimientos | 3 días | ✅ Completada |
+| **FASE 7** | Sistema de Categorías y Reglas | 4 días | ✅ Completada |
+| **FASE 8** | Dashboard y Visualizaciones | 5 días | ✅ Completada |
 | **FASE 9** | Vistas Mensuales y Anuales | 4 días | ⏳ Pendiente |
 | **FASE 10** | Sistema de Backup y Exportación | 3 días | ⏳ Pendiente |
 | **FASE 11** | Funcionalidades Avanzadas | 5 días | ⏳ Pendiente |
 | **FASE 12** | Optimización y Pulido Final | 3 días | ⏳ Pendiente |
 
-## Progreso Total: 42% (5/12 fases)
+## Progreso Total: 67% (8/12 fases)
 
 ## Últimos Commits
 
@@ -31,9 +31,9 @@
 
 ## Próximos Pasos
 
-1. **FASE 6**: Crear el sistema de gestión de movimientos con filtros avanzados y edición
-2. **FASE 7**: Completar el sistema de categorías personalizadas (ya está parcialmente implementado)
-3. **FASE 8**: Implementar el dashboard principal con visualizaciones y métricas
+1. **FASE 9**: Implementar vistas mensuales y anuales detalladas
+2. **FASE 10**: Crear sistema de backup y exportación
+3. **FASE 11**: Añadir funcionalidades avanzadas (predicciones, alertas inteligentes)
 
 ## Funcionalidades Completadas en Fase 5
 
@@ -62,3 +62,30 @@
 - Tests de integración para importación
 - Tests unitarios para analytics
 - Tests del motor de reglas
+
+## Funcionalidades Completadas en Fases 6, 7 y 8
+
+✅ **FASE 6 - Gestión de Movimientos**
+- Vista completa de movimientos con tabla avanzada (@tanstack/react-table)
+- Sistema de filtros múltiples (fecha, categoría, importe, tipo)
+- Modal de edición para crear/editar/eliminar movimientos
+- API REST completa para operaciones CRUD
+- Paginación, ordenamiento y búsqueda
+- Métricas en tiempo real
+
+✅ **FASE 7 - Sistema de Categorías y Reglas**
+- Gestión completa de categorías personalizadas
+- Editor visual de reglas con test en tiempo real
+- Motor de categorización con múltiples tipos de coincidencia
+- Sistema de prioridades y confianza
+- APIs para categorías y reglas
+- Integración con cuentas específicas
+
+✅ **FASE 8 - Dashboard y Visualizaciones**
+- Dashboard principal con métricas clave
+- Gráficos interactivos con Recharts
+- Análisis de tendencias y comparativas
+- Proyecciones de fin de mes
+- Sistema de alertas visuales
+- Selector de períodos (mes/trimestre/año)
+- APIs de analytics completas
