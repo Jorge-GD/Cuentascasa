@@ -39,12 +39,31 @@ export default function CuentasPage() {
   }
 
   const handleDelete = async (cuenta: Cuenta) => {
-    const success = await deleteCuenta(cuenta.id)
-    if (success) {
+    const result = await deleteCuenta(cuenta.id)
+    
+    if (result.success) {
       toastUtils.app.deleteSuccess('Cuenta')
+    } else if (result.requiresConfirmation) {
+      // Mostrar confirmación para borrado en cascada
+      const confirmed = confirm(
+        `La cuenta "${cuenta.nombre}" tiene ${result.movimientos} movimientos.\n\n` +
+        '¿Deseas eliminarla junto con todos sus datos?\n\n' +
+        'Esta acción no se puede deshacer.'
+      )
+      
+      if (confirmed) {
+        const forceResult = await deleteCuenta(cuenta.id, true)
+        if (forceResult.success) {
+          toastUtils.app.deleteSuccess('Cuenta y todos sus datos')
+        } else {
+          toastUtils.error('Error al eliminar la cuenta', {
+            description: forceResult.error || 'No se pudo eliminar la cuenta.'
+          })
+        }
+      }
     } else {
       toastUtils.error('Error al eliminar la cuenta', {
-        description: 'No se pudo eliminar la cuenta. Inténtalo de nuevo.'
+        description: result.error || 'No se pudo eliminar la cuenta. Inténtalo de nuevo.'
       })
     }
   }

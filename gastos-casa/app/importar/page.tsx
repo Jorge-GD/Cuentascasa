@@ -32,6 +32,21 @@ export default function ImportarPage() {
     
     try {
       setIsImporting(true)
+      
+      // Guardar las ediciones manuales antes de recargar
+      const edicionesManuales = new Map()
+      movimientos.forEach((mov) => {
+        if (mov.reglaAplicada === 'Manual' || mov.confianza === 100) {
+          const key = `${mov.fecha}_${mov.descripcion}_${mov.importe}`
+          edicionesManuales.set(key, {
+            categoriaDetectada: mov.categoriaDetectada,
+            subcategoriaDetectada: mov.subcategoriaDetectada,
+            confianza: mov.confianza,
+            reglaAplicada: mov.reglaAplicada
+          })
+        }
+      })
+      
       const response = await fetch('/api/importar/preview', {
         method: 'POST',
         body: lastUploadData.data
@@ -39,7 +54,23 @@ export default function ImportarPage() {
 
       if (response.ok) {
         const result = await response.json()
-        setMovimientos(result.data.movimientos)
+        const nuevosMovimientos = result.data.movimientos
+        
+        // Restaurar las ediciones manuales
+        nuevosMovimientos.forEach((mov: any) => {
+          const key = `${mov.fecha}_${mov.descripcion}_${mov.importe}`
+          const edicionManual = edicionesManuales.get(key)
+          
+          if (edicionManual) {
+            // Preservar la categorización manual
+            mov.categoriaDetectada = edicionManual.categoriaDetectada
+            mov.subcategoriaDetectada = edicionManual.subcategoriaDetectada
+            mov.confianza = edicionManual.confianza
+            mov.reglaAplicada = edicionManual.reglaAplicada
+          }
+        })
+        
+        setMovimientos(nuevosMovimientos)
         setAdvertencias(result.data.advertencias || [])
       } else {
         console.error('Error recargando preview')

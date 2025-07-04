@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring-network
+      - proxy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`monitor.local`)"
+
+volumes:
+  grafana_data:
+
+networks:
+  monitoring-network:
+    external: true
+  proxy-network:
+    external: true

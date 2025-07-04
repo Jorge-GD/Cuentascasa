@@ -19,7 +19,7 @@ interface CuentaState {
   fetchCuentas: () => Promise<void>
   createCuenta: (data: { nombre: string; tipo: string; color: string }) => Promise<Cuenta | null>
   updateCuenta: (id: string, data: Partial<{ nombre: string; tipo: string; color: string }>) => Promise<Cuenta | null>
-  deleteCuenta: (id: string) => Promise<boolean>
+  deleteCuenta: (id: string, force?: boolean) => Promise<{success: boolean, error?: string, requiresConfirmation?: boolean, movimientos?: number}>
   
   // Utilidades
   getCuentaById: (id: string) => Cuenta | undefined
@@ -157,11 +157,12 @@ export const useCuentaStore = create<CuentaState>()(
         }
       },
 
-      deleteCuenta: async (id) => {
+      deleteCuenta: async (id, force = false) => {
         set({ isLoading: true, error: null })
         
         try {
-          const response = await fetch(`/api/cuentas/${id}`, {
+          const url = force ? `/api/cuentas/${id}?force=true` : `/api/cuentas/${id}`
+          const response = await fetch(url, {
             method: 'DELETE',
           })
           
@@ -179,17 +180,25 @@ export const useCuentaStore = create<CuentaState>()(
               isLoading: false 
             })
             
-            return true
+            return { success: true }
           } else {
             set({ error: result.error, isLoading: false })
-            return false
+            return { 
+              success: false, 
+              error: result.error,
+              requiresConfirmation: result.requiresConfirmation,
+              movimientos: result.movimientos
+            }
           }
         } catch (error) {
           set({ 
             error: error instanceof Error ? error.message : 'Error al eliminar cuenta',
             isLoading: false 
           })
-          return false
+          return { 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Error al eliminar cuenta'
+          }
         }
       },
 

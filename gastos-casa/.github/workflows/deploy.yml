@@ -1,0 +1,239 @@
+# ============= .github/workflows/deploy.yml =============
+name: 🚀 Deploy to Production
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Permite ejecutar manualmente
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============= Job 1: Build y Test =============
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🏗️ Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🔍 Type check
+      run: npm run type-check
+
+    - name: 🧹 Lint code
+      run: npm run lint
+
+    - name: 🧪 Run tests
+      run: npm test
+
+    - name: 🏗️ Build application
+      run: npm run build
+
+  # ============= Job 2: Build Docker Image =============
+  build-image:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📋 Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🏗️ Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 📤 Output image
+      id: image
+      run: |
+        echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+
+  # ============= Job 3: Deploy to Production =============
+  deploy:
+    needs: [build-and-test, build-image]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🚀 Deploy to production server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        port: ${{ secrets.DEPLOY_PORT || 22 }}
+        script: |
+          # Colores para logs
+          RED='\033[0;31m'
+          GREEN='\033[0;32m'
+          YELLOW='\033[1;33m'
+          NC='\033[0m'
+          
+          log() {
+              echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+          }
+          
+          warn() {
+              echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}"
+          }
+          
+          error() {
+              echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
+              exit 1
+          }
+
+          # Navegar al directorio de la aplicación
+          cd ${{ secrets.DEPLOY_PATH || '/home/gastos-casa' }}
+          
+          log "🔄 Iniciando despliegue automático..."
+          
+          # Backup automático antes de actualizar
+          log "📦 Creando backup de seguridad..."
+          ./scripts/backup-schedule.sh || warn "Error en backup automático"
+          
+          # Actualizar código desde GitHub
+          log "📥 Actualizando código desde GitHub..."
+          git fetch origin
+          git reset --hard origin/main
+          
+          # Login en GitHub Container Registry
+          log "🔐 Autenticando con registro de contenedores..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Actualizar imagen Docker
+          log "🐳 Actualizando imagen Docker..."
+          docker-compose --env-file .env.production pull app
+          
+          # Recrear contenedor de aplicación
+          log "🔄 Recreando contenedor de aplicación..."
+          docker-compose --env-file .env.production up -d --force-recreate app
+          
+          # Esperar a que la aplicación esté lista
+          log "⏳ Esperando a que la aplicación esté disponible..."
+          for i in {1..30}; do
+            LOCAL_IP=$(grep HOST_IP .env.production | cut -d= -f2)
+            if curl -f "http://$LOCAL_IP:3000/api/health" >/dev/null 2>&1; then
+              log "✅ Aplicación disponible y funcionando"
+              break
+            fi
+            sleep 5
+          done
+          
+          # Verificar que el despliegue fue exitoso
+          LOCAL_IP=$(grep HOST_IP .env.production | cut -d= -f2)
+          if ! curl -f "http://$LOCAL_IP:3000/api/health" >/dev/null 2>&1; then
+            error "❌ La aplicación no responde después del despliegue"
+          fi
+          
+          # Limpiar imágenes antiguas
+          log "🧹 Limpiando imágenes Docker antiguas..."
+          docker image prune -f
+          
+          # Mostrar estado final
+          log "📊 Estado de contenedores:"
+          docker-compose --env-file .env.production ps
+          
+          log "✅ Despliegue completado exitosamente!"
+          log "🌐 Aplicación actualizada en: http://$LOCAL_IP:3000"
+
+  # ============= Job 4: Notificación =============
+  notify:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: 📢 Notify deployment status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          🚀 Despliegue de Gastos Casa ${{ job.status == 'success' && 'exitoso' || 'falló' }}
+          
+          📋 Detalles:
+          • Commit: ${{ github.sha }}
+          • Autor: ${{ github.actor }}
+          • Rama: ${{ github.ref_name }}
+          • Imagen: ${{ needs.build-image.outputs.image }}
+          
+          ${{ job.status == 'success' && '✅ La aplicación está disponible y actualizada' || '❌ El despliegue falló, revisar logs' }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============= Job 5: Rollback (si falla) =============
+  rollback:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+    - name: 🔄 Rollback on failure
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        port: ${{ secrets.DEPLOY_PORT || 22 }}
+        script: |
+          cd ${{ secrets.DEPLOY_PATH || '/home/gastos-casa' }}
+          
+          echo "🔄 Iniciando rollback automático..."
+          
+          # Buscar el backup más reciente
+          LATEST_BACKUP=$(find /home/$(whoami)/gastos-casa-backups -name "backup-*.tar.gz" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
+          
+          if [ -n "$LATEST_BACKUP" ]; then
+            echo "📦 Restaurando desde: $LATEST_BACKUP"
+            echo "SI" | ./scripts/restore-backup.sh "$LATEST_BACKUP"
+            echo "✅ Rollback completado"
+          else
+            echo "❌ No se encontró backup para rollback"
+            # Intentar reiniciar servicios al menos
+            docker-compose --env-file .env.production restart
+          fi

@@ -159,6 +159,377 @@ export class CategorizationEngine {
       subcategoria: 'Música',
       prioridad: 1,
       activa: true
+    },
+    // === RESTAURANTES Y HOSTELERÍA ===
+    {
+      id: 'restaurantes-general',
+      nombre: 'Restaurantes Generales',
+      patron: '(MASSALA|COMPRADRES|CALETA|MAIALI|MANUKA|SIMBAD|SUSHISOM|TANI TRINI)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Restaurantes',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'pizzerias',
+      nombre: 'Pizzerías',
+      patron: '(PIZZA.*NAPOLI|HAMBURGUESERIA.*PIZZERIA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Restaurantes',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'comida-rapida',
+      nombre: 'Comida Rápida',
+      patron: '(FIVE.*GUYS|POLLO.*ANDALUZ|DIVINA.*MASA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Restaurantes',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'bares-tapas',
+      nombre: 'Bares y Tapas',
+      patron: '(BAR.*LOS.*COMPRADRES|TANI.*TRINI)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Restaurantes',
+      prioridad: 1,
+      activa: true
+    },
+    // === CAFETERÍAS Y DULCES ===
+    {
+      id: 'heladerias',
+      nombre: 'Heladerías',
+      patron: '(HELADERIA.*AMARETTO|GIOLATTO)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Cafeterías',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'cafeterias',
+      nombre: 'Cafeterías',
+      patron: '(VILLAGE.*CAFE|SAN.*CHOCOLATE|CROISSANT.*PORTUGUES)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Cafeterías',
+      prioridad: 1,
+      activa: true
+    },
+    // === SUPERMERCADOS Y ALIMENTACIÓN ===
+    {
+      id: 'supermercados-adicionales',
+      nombre: 'Supermercados Adicionales',
+      patron: '(EROSKI|HIPER.*EURO|ALIMENTACION.*SOL|MARKET.*MARBELLA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'panaderias',
+      nombre: 'Panaderías',
+      patron: '(PANIFICADORA|CHURRERIA.*OSCAR|FERMENTO.*PAN|OBRADOR.*ARTESANA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'carniceria',
+      nombre: 'Carnicería',
+      patron: 'CARNICERIA.*AMIL',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Carnicería',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'productos-especializados',
+      nombre: 'Productos Especializados',
+      patron: '(ACEITUNAS.*MORILLAS|FRUTOS.*SECOS.*3.*M)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'alcampo',
+      nombre: 'Supermercado Alcampo',
+      patron: 'ALCAMPO',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado Alcampo',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'lidl',
+      nombre: 'Supermercado Lidl',
+      patron: 'LIDL',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado Lidl',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'aldi',
+      nombre: 'Supermercado Aldi',
+      patron: 'ALDI',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado Aldi',
+      prioridad: 1,
+      activa: true
+    },
+    // === MODA Y TEXTIL ===
+    {
+      id: 'moda-femenina',
+      nombre: 'Moda Femenina',
+      patron: 'WOMEN.*SECRET',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Ropa',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'grandes-almacenes',
+      nombre: 'Grandes Almacenes',
+      patron: 'DUNNES.*STORES',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Ropa',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'moda-infantil',
+      nombre: 'Moda Infantil',
+      patron: 'INFANTILES.*LEON',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Ropa',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'textil-hogar',
+      nombre: 'Textil Hogar',
+      patron: 'TRAMAS',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Compras',
+      subcategoria: 'Ropa',
+      prioridad: 1,
+      activa: true
+    },
+    // === ELECTRODOMÉSTICOS ===
+    {
+      id: 'electrodomesticos',
+      nombre: 'Electrodomésticos',
+      patron: 'CRISTOBAL.*PRIETO.*AGUILAR',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Tecnología',
+      prioridad: 1,
+      activa: true
+    },
+    // === HOGAR Y DECORACIÓN ===
+    {
+      id: 'jardineria',
+      nombre: 'Jardinería',
+      patron: 'VIVEROS.*MARBELLA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'decoracion',
+      nombre: 'Decoración',
+      patron: '(TIGER.*CAÑADA|ALMACEN.*TAPICERO|DUENDE.*CAÑADA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'puericultura',
+      nombre: 'Puericultura',
+      patron: 'ARTSANA.*SPAIN',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'ferreteria',
+      nombre: 'Ferretería',
+      patron: 'SHOPPING.*HOME.*ESTEPONA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'pinturas',
+      nombre: 'Pinturas',
+      patron: 'PINTURAS.*ANDALUCIA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'centros-comerciales',
+      nombre: 'Centros Comerciales',
+      patron: 'ENRA.*CAÑADA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    // === PARKING ===
+    {
+      id: 'parking-malaga',
+      nombre: 'Parking Málaga',
+      patron: 'SMASSA.*MARINA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Transporte',
+      subcategoria: 'Parking',
+      prioridad: 1,
+      activa: true
+    },
+    // === HERBOLARIO ONLINE ===
+    {
+      id: 'herbolario-online',
+      nombre: 'Herbolario Online',
+      patron: 'HERBOLARIO.*BUHO.*MADRID',
+      tipoCoincidencia: 'regex',
+      categoria: 'Compras Online',
+      subcategoria: 'Otros',
+      prioridad: 1,
+      activa: true
+    },
+    // === SERVICIOS ESPECIALIZADOS ===
+    {
+      id: 'servicios-hosteleria',
+      nombre: 'Servicios Hostelería',
+      patron: 'ODELPIN.*HOSTELERIA',
+      tipoCoincidencia: 'regex',
+      categoria: 'Otros Gastos',
+      subcategoria: 'Sin categorizar',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'servicios-hvac',
+      nombre: 'Servicios HVAC',
+      patron: 'ESCODA',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Otros Gastos',
+      subcategoria: 'Sin categorizar',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'vending',
+      nombre: 'Máquinas Vending',
+      patron: 'ALLIANCE.*VENDING',
+      tipoCoincidencia: 'regex',
+      categoria: 'Otros Gastos',
+      subcategoria: 'Sin categorizar',
+      prioridad: 1,
+      activa: true
+    },
+    // === SUPERMERCADOS ESPECÍFICOS ===
+    {
+      id: 'mercadona-especifico',
+      nombre: 'Supermercado Mercadona',
+      patron: 'MERCADONA',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado Mercadona',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'carrefour-especifico',
+      nombre: 'Supermercado Carrefour',
+      patron: 'CARREFOUR',
+      tipoCoincidencia: 'contiene',
+      categoria: 'Alimentación',
+      subcategoria: 'Supermercado Carrefour',
+      prioridad: 1,
+      activa: true
+    },
+    // === AHORRO E INVERSIÓN ===
+    {
+      id: 'transferencia-ahorro',
+      nombre: 'Transferencia a Ahorro',
+      patron: '(TRANSFERENCIA.*AHORRO|AHORRO.*TRANSFERENCIA|CUENTA.*AHORRO)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Ahorro',
+      subcategoria: 'Cuenta Ahorro',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'inversiones',
+      nombre: 'Inversiones',
+      patron: '(INVERSION|BROKER|ACCIONES|FONDOS|ETF|BOLSA)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Inversión',
+      subcategoria: 'Acciones',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'plan-pensiones',
+      nombre: 'Plan de Pensiones',
+      patron: '(PLAN.*PENSION|PENSION|JUBILACION)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Pensiones',
+      subcategoria: 'Plan Pensiones',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'pago-prestamos',
+      nombre: 'Pago de Préstamos',
+      patron: '(PRESTAMO|CREDITO|FINANCIACION|CUOTA.*PRESTAMO)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Pago Deudas',
+      subcategoria: 'Préstamos',
+      prioridad: 1,
+      activa: true
+    },
+    {
+      id: 'depositos',
+      nombre: 'Depósitos',
+      patron: '(DEPOSITO|PLAZO.*FIJO|IMPOSICION)',
+      tipoCoincidencia: 'regex',
+      categoria: 'Ahorro',
+      subcategoria: 'Depósitos',
+      prioridad: 1,
+      activa: true
     }
   ]
 

@@ -44,21 +44,60 @@ const CATEGORIAS_BASE = {
     color: "#06b6d4",
     icono: "🎁",
     subcategorias: ["Regalos", "Celebraciones"]
+  },
+  ahorro: {
+    nombre: "Ahorro",
+    color: "#10b981",
+    icono: "💰",
+    tipo503020: "ahorro",
+    subcategorias: ["Fondo Emergencia", "Cuenta Ahorro", "Depósitos", "Objetivos"]
+  },
+  inversion: {
+    nombre: "Inversión",
+    color: "#3b82f6",
+    icono: "📈",
+    tipo503020: "ahorro",
+    subcategorias: ["Acciones", "Fondos", "ETF", "Broker"]
+  },
+  pensiones: {
+    nombre: "Pensiones",
+    color: "#6366f1",
+    icono: "🏦",
+    tipo503020: "ahorro",
+    subcategorias: ["Plan Pensiones", "Jubilación", "Seguros"]
+  },
+  pagoDeudas: {
+    nombre: "Pago Deudas",
+    color: "#ef4444",
+    icono: "💳",
+    tipo503020: "ahorro",
+    subcategorias: ["Préstamos", "Créditos", "Financiación", "Tarjetas"]
   }
 }
 
 async function main() {
   console.log('Iniciando seeding de la base de datos...')
 
-  // Crear categorías base
+  // Crear categorías base (solo las que no existen)
   for (const [key, categoria] of Object.entries(CATEGORIAS_BASE)) {
-    console.log(`Creando categoría: ${categoria.nombre}`)
+    console.log(`Verificando categoría: ${categoria.nombre}`)
+    
+    // Verificar si ya existe
+    const categoriaExistente = await prisma.categoria.findUnique({
+      where: { nombre: categoria.nombre }
+    })
+
+    if (categoriaExistente) {
+      console.log(`⚠️  Categoría ${categoria.nombre} ya existe, omitiendo...`)
+      continue
+    }
     
     const categoriaCreada = await prisma.categoria.create({
       data: {
         nombre: categoria.nombre,
         color: categoria.color,
         icono: categoria.icono,
+        tipo503020: categoria.tipo503020 || null,
         subcategorias: {
           create: categoria.subcategorias.map(sub => ({
             nombre: sub

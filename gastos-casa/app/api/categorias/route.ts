@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCategorias, createCategoria } from '@/lib/db/queries'
+import { CategoriesCache, CacheInvalidator } from '@/lib/redis/cache-modules'
 
 export async function GET(request: NextRequest) {
   try {
-    const categorias = await getCategorias()
+    // 🚀 USAR CACHE REDIS - Esta línea cambia todo!
+    const categorias = await CategoriesCache.getAll()
 
     return NextResponse.json({
       success: true,
-      data: categorias
+      data: categorias,
+      cached: true // Indicar que viene del cache
     })
 
   } catch (error) {
@@ -72,6 +75,9 @@ export async function POST(request: NextRequest) {
       icono: body.icono || null,
       presupuesto: body.presupuesto ? parseFloat(body.presupuesto) : null
     })
+
+    // 🚀 INVALIDAR CACHE después de crear categoría
+    await CacheInvalidator.onCategoriaChange()
 
     return NextResponse.json({
       success: true,

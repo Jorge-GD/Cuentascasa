@@ -5,6 +5,7 @@ import { DuplicateDetector } from '@/lib/utils/duplicateDetection'
 import type { MovimientoRaw } from '@/lib/types/parser'
 import { generateMovimientoHash } from '@/lib/utils/movimientoHash'
 import { aplicarCategorizacionInteligente } from '@/lib/utils/categorizacionInteligente'
+import { CacheInvalidator } from '@/lib/redis/cache-modules'
 
 export async function POST(request: NextRequest) {
   try {
@@ -183,6 +184,13 @@ export async function POST(request: NextRequest) {
         skippedDuplicates: skippedDuplicates
       } as any
     }
+
+    // 🚀 INVALIDAR CACHE después de importación masiva
+    // La importación puede haber creado categorías automáticamente
+    await CacheInvalidator.onCategoriaChange()
+    
+    // También invalidar cache de movimientos de esta cuenta
+    await CacheInvalidator.onMovimientoChange(body.cuentaId)
 
     return NextResponse.json(response)
 

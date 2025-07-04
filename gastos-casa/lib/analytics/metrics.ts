@@ -5,6 +5,7 @@ import {
   startOfYear, 
   endOfYear, 
   subMonths, 
+  subDays,
   format,
   startOfWeek,
   endOfWeek,
@@ -120,10 +121,46 @@ export async function getDashboardMetrics(
 
   // Calcular métricas básicas
   const gastos = movimientos.filter(m => m.importe < 0)
-  const ingresos = movimientos.filter(m => m.importe > 0)
+  
+  // Para ingresos del mes actual, buscar nóminas del mes anterior (5-7 días antes del inicio del mes)
+  let ingresoTotal = 0
+  
+  if (periodo === 'mes') {
+    // Calcular el rango de fechas para buscar nóminas del mes anterior
+    const inicioMesActual = startOfMonth(now)
+    const fecha7DiasAntes = subDays(inicioMesActual, 7)
+    const fecha5DiasAntes = subDays(inicioMesActual, 5)
+    
+    // Buscar nóminas en el rango de 5-7 días antes del inicio del mes actual
+    // EXCLUYENDO las que pertenezcan al mes actual (evitar doble contabilización)
+    const nominasAnterior = await prisma.movimiento.findMany({
+      where: {
+        cuentaId,
+        fecha: {
+          gte: fecha7DiasAntes,
+          lte: fecha5DiasAntes
+        },
+        categoria: 'Ingresos',
+        subcategoria: 'Nómina',
+        importe: { gt: 0 },
+        // EXCLUIR las nóminas del mes actual para evitar duplicados
+        NOT: {
+          fecha: {
+            gte: startOfMonth(now),
+            lte: endOfMonth(now)
+          }
+        }
+      }
+    })
+    
+    ingresoTotal = nominasAnterior.reduce((sum, m) => sum + m.importe, 0)
+  } else {
+    // Para otros períodos (trimestre, año), usar lógica original
+    const ingresos = movimientos.filter(m => m.importe > 0)
+    ingresoTotal = ingresos.reduce((sum, m) => sum + m.importe, 0)
+  }
   
   const gastoTotal = Math.abs(gastos.reduce((sum, m) => sum + m.importe, 0))
-  const ingresoTotal = ingresos.reduce((sum, m) => sum + m.importe, 0)
   const balance = ingresoTotal - gastoTotal
 
   // Comparación con período anterior

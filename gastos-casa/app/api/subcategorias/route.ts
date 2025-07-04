@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSubcategoria } from '@/lib/db/queries'
+import { CacheInvalidator } from '@/lib/redis/cache-modules'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
       nombre: body.nombre.trim(),
       categoriaId: body.categoriaId
     })
+
+    // 🚀 INVALIDAR CACHE después de crear subcategoría
+    await CacheInvalidator.onCategoriaChange()
 
     return NextResponse.json({
       success: true,

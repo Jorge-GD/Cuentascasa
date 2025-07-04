@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getMovimientoById, updateMovimiento, deleteMovimiento } from '@/lib/db/queries'
+import { getMovimientoById, updateMovimiento, deleteMovimiento, createRegla } from '@/lib/db/queries'
+import { CacheInvalidator } from '@/lib/redis/cache-modules'
 
 export async function GET(
   request: NextRequest,
@@ -107,6 +108,14 @@ export async function PUT(
 
     const updatedMovimiento = await updateMovimiento(id, updateData)
 
+    // Aprendizaje automático: si el usuario corrigió la categoría, crear regla
+    if (body.categoria && body.categoria !== existingMovimiento.categoria) {
+      await createAutoLearningRule(existingMovimiento, body.categoria, body.subcategoria)
+    }
+
+    // 🚀 INVALIDAR CACHE después de actualizar movimiento
+    await CacheInvalidator.onMovimientoChange(updatedMovimiento.cuentaId, new Date(updatedMovimiento.fecha))
+
     return NextResponse.json({
       success: true,
       data: updatedMovimiento
@@ -145,6 +154,9 @@ export async function DELETE(
 
     await deleteMovimiento(id)
 
+    // 🚀 INVALIDAR CACHE después de eliminar movimiento
+    await CacheInvalidator.onMovimientoChange(existingMovimiento.cuentaId, new Date(existingMovimiento.fecha))
+
     return NextResponse.json({
       success: true,
       message: 'Movimiento eliminado correctamente'
@@ -160,5 +172,77 @@ export async function DELETE(
       },
       { status: 500 }
     )
+  }
+}
+
+// Función para crear reglas automáticas basadas en correcciones del usuario
+async function createAutoLearningRule(
+  movimiento: any,
+  nuevaCategoria: string,
+  nuevaSubcategoria?: string
+) {
+  try {
+    const descripcion = movimiento.descripcion.toUpperCase()
+    let patron = ''
+    let tipoCoincidencia: 'contiene' | 'regex' = 'contiene'
+    
+    // Extraer patrón inteligente de la descripción
+    if (descripcion.includes('PAGO EN ')) {
+      // Para pagos en establecimientos, extraer el nombre del establecimiento
+      const match = descripcion.match(/PAGO EN ([A-Z\s]+?)(?:\s+\(|$)/)
+      if (match) {
+        patron = match[1].trim()
+      }
+    } else if (descripcion.includes('BIZUM')) {
+      // Para BIZUM, usar patrón general
+      patron = 'BIZUM'
+    } else if (descripcion.includes('TRANSFERENCIA')) {
+      // Para transferencias
+      patron = 'TRANSFERENCIA'
+    } else if (descripcion.includes('RETIRADA CAJERO')) {
+      // Para cajeros
+      patron = 'RETIRADA CAJERO'
+    } else {
+      // Para otros casos, extraer las primeras 2-3 palabras significativas
+      const palabras = descripcion
+        .split(' ')
+        .filter(palabra => palabra.length > 2 && !['CON', 'POR', 'PARA', 'DEL', 'LAS', 'LOS'].includes(palabra))
+        .slice(0, 3)
+      
+      if (palabras.length > 1) {
+        patron = palabras.join('.*')
+        tipoCoincidencia = 'regex'
+      } else if (palabras.length === 1) {
+        patron = palabras[0]
+      } else {
+        // Si no se puede extraer un patrón válido, no crear regla
+        return
+      }
+    }
+    
+    if (patron) {
+      // Verificar que el patrón no sea demasiado genérico
+      if (patron.length < 3) return
+      
+      // Crear la regla automática
+      await createRegla({
+        nombre: `Auto-Aprendizaje: ${patron}`,
+        patron,
+        tipoCoincidencia,
+        categoria: nuevaCategoria,
+        subcategoria: nuevaSubcategoria,
+        prioridad: 2, // Prioridad alta pero menor que las reglas predefinidas
+        activa: true,
+        cuentaId: movimiento.cuentaId
+      })
+      
+      // 🚀 INVALIDAR CACHE después de crear regla automática
+      await CacheInvalidator.onCategoriaChange()
+      
+      console.log(`Regla automática creada: ${patron} -> ${nuevaCategoria}/${nuevaSubcategoria}`)
+    }
+  } catch (error) {
+    console.error('Error creando regla automática:', error)
+    // No fallar la actualización del movimiento si no se puede crear la regla
   }
 }

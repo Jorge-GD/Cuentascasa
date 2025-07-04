@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDashboardMetrics } from '@/lib/analytics/metrics'
+import { AnalyticsCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const metrics = await getDashboardMetrics(cuentaId, periodo)
+    const metrics = await AnalyticsCache.getDashboardMetrics(cuentaId, periodo)
 
     return NextResponse.json({
       success: true,

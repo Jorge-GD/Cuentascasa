@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCuentaById, updateCuenta, deleteCuenta, getCuentas } from '@/lib/db/queries'
 import { TipoCuenta } from '@/lib/types/database'
+import { prisma } from '@/lib/db/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -129,17 +130,38 @@ export async function DELETE(
       )
     }
 
-    // TODO: Verificar que no tenga movimientos antes de eliminar
-    // const movimientos = await getMovimientos(params.id)
-    // if (movimientos.length > 0) {
-    //   return NextResponse.json(
-    //     { 
-    //       success: false,
-    //       error: 'No se puede eliminar una cuenta con movimientos'
-    //     },
-    //     { status: 400 }
-    //   )
-    // }
+    // Verificar si tiene movimientos y ofrecer borrado en cascada
+    const movimientos = await prisma.movimiento.count({
+      where: { cuentaId: id }
+    })
+
+    if (movimientos > 0) {
+      // Obtener parámetro query para confirmar borrado en cascada
+      const { searchParams } = new URL(request.url)
+      const forzarBorrado = searchParams.get('force') === 'true'
+      
+      if (!forzarBorrado) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: `La cuenta tiene ${movimientos} movimientos. ¿Deseas eliminarla junto con todos sus datos?`,
+            requiresConfirmation: true,
+            movimientos
+          },
+          { status: 409 } // Conflict
+        )
+      }
+      
+      // Borrar movimientos primero (borrado en cascada manual)
+      await prisma.movimiento.deleteMany({
+        where: { cuentaId: id }
+      })
+      
+      // Borrar reglas de categorización asociadas
+      await prisma.reglaCategorizacion.deleteMany({
+        where: { cuentaId: id }
+      })
+    }
 
     await deleteCuenta(id)
 
