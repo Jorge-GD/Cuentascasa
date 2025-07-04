@@ -30,8 +30,9 @@ export class AnalyticsCache {
       key,
       async () => {
         console.log(`🔍 Calculando analytics por categorías para ${cuentaId}...`);
-        const { calculateCategoryMetrics } = await import('@/lib/analytics/calculations');
-        return await calculateCategoryMetrics(cuentaId, year, month);
+        const { getDetailedCategoryAnalysis } = await import('@/lib/analytics/metrics');
+        const periodo = month ? 'mes' : 'año';
+        return await getDetailedCategoryAnalysis(cuentaId, periodo);
       },
       1200 // 20 minutos
     );
@@ -97,8 +98,31 @@ export class AnalyticsCache {
       key,
       async () => {
         console.log(`🔍 Obteniendo años disponibles para ${cuentaId}...`);
-        const { getAvailableYears } = await import('@/lib/analytics/calculations');
-        return await getAvailableYears(cuentaId);
+        const { prisma } = await import('@/lib/db/prisma');
+        
+        // Obtener el rango de años con datos
+        const movimientosRange = await prisma.movimiento.aggregate({
+          where: {
+            cuentaId: cuentaId
+          },
+          _min: { fecha: true },
+          _max: { fecha: true }
+        });
+
+        if (!movimientosRange._min?.fecha || !movimientosRange._max?.fecha) {
+          return [];
+        }
+
+        const añoMinimo = movimientosRange._min.fecha.getFullYear();
+        const añoMaximo = movimientosRange._max.fecha.getFullYear();
+
+        // Generar lista de años disponibles (del más reciente al más antiguo)
+        const años = [];
+        for (let año = añoMaximo; año >= añoMinimo; año--) {
+          años.push(año);
+        }
+        
+        return años;
       },
       14400 // 4 horas
     );
@@ -143,6 +167,49 @@ export class AnalyticsCache {
       cacheManager.invalidatePattern(`analytics:comparative:${cuentaId}:*`),
       cacheManager.invalidatePattern(`analytics:years:${cuentaId}`)
     ]);
+  }
+}
+
+/**
+ * Cache específico para Presupuestos
+ * Análisis de cumplimiento de presupuestos por categoría
+ */
+export class PresupuestosCache {
+  private static TTL = 600; // 10 minutos por defecto (datos que cambian con frecuencia)
+
+  // Análisis de presupuestos
+  static async getAnalysis(cuentaId?: string, fecha?: string) {
+    const fechaKey = fecha || new Date().toISOString().split('T')[0]; // Solo fecha sin hora
+    const key = `presupuestos:analysis:${cuentaId || 'all'}:${fechaKey}`;
+    
+    return cacheManager.getOrSet(
+      key,
+      async () => {
+        console.log(`🔍 Calculando análisis de presupuestos...`);
+        const { calculatePresupuestosAnalysis } = await import('@/lib/analytics/presupuestos');
+        return await calculatePresupuestosAnalysis(cuentaId, fecha);
+      },
+      this.TTL
+    );
+  }
+
+  // Invalidar cache de presupuestos cuando cambian categorías o movimientos
+  static async invalidateAnalysis(cuentaId?: string) {
+    const patterns = cuentaId 
+      ? [`presupuestos:analysis:${cuentaId}:*`]
+      : ['presupuestos:analysis:*'];
+
+    await Promise.all(
+      patterns.map(pattern => cacheManager.invalidatePattern(pattern))
+    );
+
+    console.log(`🗑️ Invalidado cache presupuestos${cuentaId ? ` para cuenta ${cuentaId}` : ''}`);
+  }
+
+  // Invalidar todo el cache de presupuestos
+  static async invalidateAll() {
+    console.log('🗑️ Invalidando TODO el cache de presupuestos...');
+    await cacheManager.invalidatePattern('presupuestos:*');
   }
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAccountComparison } from '@/lib/analytics/metrics'
+import { AnalyticsCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const comparison = await getAccountComparison(
-      cuentaIds, 
-      periodo,
-      fechaInicio ? new Date(fechaInicio) : undefined,
-      fechaFin ? new Date(fechaFin) : undefined
-    )
+    // Extraer año y mes del periodo si es necesario
+    const now = new Date()
+    const year = fechaInicio ? new Date(fechaInicio).getFullYear() : now.getFullYear()
+    const month = periodo === 'mes' && fechaInicio ? new Date(fechaInicio).getMonth() + 1 : undefined
+
+    const comparison = await AnalyticsCache.getAccountComparison(cuentaIds, year, month)
 
     return NextResponse.json({
       success: true,

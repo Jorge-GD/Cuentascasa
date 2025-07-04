@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db/prisma'
+import { AnalyticsCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,30 +13,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Obtener el rango de años con datos
-    const movimientosRange = await prisma.movimiento.aggregate({
-      where: {
-        cuentaId: cuentaId
-      },
-      _min: { fecha: true },
-      _max: { fecha: true }
-    })
-
-    if (!movimientosRange._min?.fecha || !movimientosRange._max?.fecha) {
-      return NextResponse.json({
-        success: true,
-        data: []
-      })
-    }
-
-    const añoMinimo = movimientosRange._min.fecha.getFullYear()
-    const añoMaximo = movimientosRange._max.fecha.getFullYear()
-
-    // Generar lista de años disponibles (del más reciente al más antiguo)
-    const años = []
-    for (let año = añoMaximo; año >= añoMinimo; año--) {
-      años.push(año)
-    }
+    const años = await AnalyticsCache.getAvailableYears(cuentaId)
 
     return NextResponse.json({
       success: true,

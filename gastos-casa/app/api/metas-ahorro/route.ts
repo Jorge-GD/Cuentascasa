@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { MetasAhorroCache } from '@/lib/redis/cache-modules';
 
 export async function GET() {
   try {
-    const configuracion = await prisma.configuracionUsuario.findFirst();
-    
-    if (!configuracion) {
-      return NextResponse.json([]);
-    }
-
-    const metas = await prisma.metaAhorro.findMany({
-      where: { configuracionId: configuracion.id },
-      orderBy: { prioridad: 'asc' }
-    });
-
+    const metas = await MetasAhorroCache.getAll();
     return NextResponse.json(metas);
   } catch (error) {
     console.error('Error al obtener metas:', error);
@@ -29,6 +19,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { nombre, objetivo, tipo } = body;
 
+    const { prisma } = await import('@/lib/db/prisma');
+    
     // Obtener configuración
     let configuracion = await prisma.configuracionUsuario.findFirst();
     
@@ -57,6 +49,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Invalidar cache
+    await MetasAhorroCache.invalidateAll();
+
     return NextResponse.json(meta);
   } catch (error) {
     console.error('Error al crear meta:', error);
@@ -72,6 +67,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, ahorrado, activa } = body;
 
+    const { prisma } = await import('@/lib/db/prisma');
+
     const dataToUpdate: any = {};
     if (ahorrado !== undefined) dataToUpdate.ahorrado = ahorrado;
     if (activa !== undefined) dataToUpdate.activa = activa;
@@ -80,6 +77,9 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data: dataToUpdate
     });
+
+    // Invalidar cache
+    await MetasAhorroCache.invalidateAll();
 
     return NextResponse.json(meta);
   } catch (error) {
@@ -103,9 +103,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const { prisma } = await import('@/lib/db/prisma');
+
     await prisma.metaAhorro.delete({
       where: { id }
     });
+
+    // Invalidar cache
+    await MetasAhorroCache.invalidateAll();
 
     return NextResponse.json({ success: true });
   } catch (error) {

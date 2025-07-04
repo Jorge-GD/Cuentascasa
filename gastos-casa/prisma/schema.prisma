@@ -17,8 +17,8 @@ model Cuenta {
   color       String   // Para identificación visual
   createdAt   DateTime @default(now())
   
-  movimientos Movimiento[]
-  reglas      ReglaCategorizacion[]
+  movimientos       Movimiento[]
+  reglas            ReglaCategorizacion[]
 }
 
 model Movimiento {
@@ -129,3 +129,4 @@ model MetaAhorro {
   configuracionId   String
   configuracion     ConfiguracionUsuario @relation(fields: [configuracionId], references: [id])
 }
+

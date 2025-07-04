@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db/prisma'
+import { CacheInvalidator } from '@/lib/redis/cache-modules'
 
 export async function GET(
   request: NextRequest,
@@ -7,6 +7,7 @@ export async function GET(
 ) {
   const { id } = await params
   try {
+    const { prisma } = await import('@/lib/db/prisma')
     const regla = await prisma.reglaCategorizacion.findUnique({
       where: { id }
     })
@@ -45,6 +46,7 @@ export async function PUT(
 ) {
   const { id } = await params
   try {
+    const { prisma } = await import('@/lib/db/prisma')
     const body = await request.json()
     
     // Verify regla exists
@@ -119,6 +121,9 @@ export async function PUT(
       data: updateData
     })
 
+    // Invalidar cache después de actualizar regla
+    await CacheInvalidator.onReglaChange(updatedRegla.cuentaId || undefined)
+
     return NextResponse.json({
       success: true,
       data: updatedRegla
@@ -143,6 +148,8 @@ export async function DELETE(
 ) {
   const { id } = await params
   try {
+    const { prisma } = await import('@/lib/db/prisma')
+    
     // Verify regla exists
     const existingRegla = await prisma.reglaCategorizacion.findUnique({
       where: { id }
@@ -161,6 +168,9 @@ export async function DELETE(
     await prisma.reglaCategorizacion.delete({
       where: { id }
     })
+
+    // Invalidar cache después de eliminar regla
+    await CacheInvalidator.onReglaChange(existingRegla.cuentaId || undefined)
 
     return NextResponse.json({
       success: true,

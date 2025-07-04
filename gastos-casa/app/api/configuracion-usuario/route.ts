@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { ConfiguracionCache, CacheInvalidator } from '@/lib/redis/cache-modules';
 
 export async function GET() {
   try {
-    const configuracion = await prisma.configuracionUsuario.findFirst({
-      include: {
-        metas: {
-          orderBy: { prioridad: 'asc' }
-        }
-      }
-    });
-
+    const configuracion = await ConfiguracionCache.getConfiguracion();
     return NextResponse.json(configuracion);
   } catch (error) {
     console.error('Error al obtener configuración:', error);
@@ -25,6 +18,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { ingresoMensual, porcentajeNecesidades, porcentajeDeseos, porcentajeAhorro } = body;
+
+    const { prisma } = await import('@/lib/db/prisma');
 
     // Buscar configuración existente
     const configuracionExistente = await prisma.configuracionUsuario.findFirst();
@@ -65,6 +60,9 @@ export async function POST(request: NextRequest) {
         include: { metas: true }
       });
     }
+
+    // Invalidar cache después de actualizar configuración
+    await CacheInvalidator.onConfiguracionChange();
 
     return NextResponse.json(configuracion);
   } catch (error) {

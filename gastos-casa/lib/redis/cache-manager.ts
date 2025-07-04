@@ -5,13 +5,15 @@ export class CacheManager {
   private redis: RedisClientType;
   private defaultTTL = 1800; // 30 minutos por defecto
   private keyPrefix = 'gastos-casa:'; // Prefijo para todas las keys
+  private lockPrefix = 'lock:'; // Prefijo para locks
+  private pendingRequests = new Map<string, Promise<any>>(); // In-memory lock para el mismo proceso
 
   constructor() {
     const redisInstance = RedisClient.getInstance();
     this.redis = redisInstance.getClient();
   }
 
-  // Método principal: obtener del cache o ejecutar función
+  // Método principal: obtener del cache o ejecutar función (con protección thundering herd)
   async getOrSet<T>(
     key: string,
     fetchFunction: () => Promise<T>,
@@ -34,20 +36,90 @@ export class CacheManager {
         return JSON.parse(cached);
       }
       
-      // Cache MISS - ejecutar función y cachear resultado
-      console.log(`📊 Cache MISS: ${key} - Calculando...`);
-      const data = await fetchFunction();
+      // Cache MISS - verificar si ya hay una request en proceso para esta key
+      if (this.pendingRequests.has(key)) {
+        console.log(`⏳ Esperando request existente para: ${key}`);
+        return await this.pendingRequests.get(key);
+      }
+
+      // Crear lock distribuido usando Redis SET NX
+      const lockKey = this.keyPrefix + this.lockPrefix + key;
+      const lockValue = Date.now().toString();
+      const lockTTL = 30; // 30 segundos de lock máximo
       
-      // Guardar en cache
-      await this.redis.setEx(fullKey, ttl, JSON.stringify(data));
-      console.log(`💾 Cached: ${key} (TTL: ${ttl}s)`);
+      const lockAcquired = await this.redis.set(lockKey, lockValue, {
+        NX: true, // Solo establecer si no existe
+        EX: lockTTL // Expirar después de 30 segundos
+      });
       
-      return data;
+      if (!lockAcquired) {
+        // No pudimos obtener el lock, otro proceso está calculando
+        console.log(`🔒 Lock ocupado para ${key}, esperando...`);
+        
+        // Esperar un poco y intentar obtener del cache otra vez
+        await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+        
+        const cachedAfterWait = await this.redis.get(fullKey);
+        if (cachedAfterWait) {
+          console.log(`🚀 Cache HIT después de esperar: ${key}`);
+          return JSON.parse(cachedAfterWait);
+        }
+        
+        // Si aún no está en cache, ejecutar la función sin lock
+        console.log(`⚡ Ejecutando sin lock para ${key}`);
+        return await fetchFunction();
+      }
+      
+      // Tenemos el lock, crear promise y agregarlo al mapa
+      const promise = this._executeWithLock<T>(key, fetchFunction, ttl, lockKey, lockValue);
+      this.pendingRequests.set(key, promise);
+      
+      try {
+        const result = await promise;
+        return result;
+      } finally {
+        // Limpiar el request pendiente
+        this.pendingRequests.delete(key);
+      }
+      
     } catch (error) {
       console.error(`❌ Cache error para ${key}:`, error);
       // Fallback: ejecutar función directamente sin cache
       console.log(`🔄 Fallback: ejecutando función directamente para ${key}`);
       return await fetchFunction();
+    }
+  }
+
+  // Método privado para ejecutar función con lock
+  private async _executeWithLock<T>(
+    key: string,
+    fetchFunction: () => Promise<T>,
+    ttl: number,
+    lockKey: string,
+    lockValue: string
+  ): Promise<T> {
+    const fullKey = this.keyPrefix + key;
+    
+    try {
+      console.log(`📊 Cache MISS con lock: ${key} - Calculando...`);
+      const data = await fetchFunction();
+      
+      // Guardar en cache
+      await this.redis.setEx(fullKey, ttl, JSON.stringify(data));
+      console.log(`💾 Cached con lock: ${key} (TTL: ${ttl}s)`);
+      
+      return data;
+    } finally {
+      // Liberar el lock verificando que sea nuestro lock
+      try {
+        const currentLockValue = await this.redis.get(lockKey);
+        if (currentLockValue === lockValue) {
+          await this.redis.del(lockKey);
+          console.log(`🔓 Lock liberado para: ${key}`);
+        }
+      } catch (lockError) {
+        console.error(`❌ Error liberando lock para ${key}:`, lockError);
+      }
     }
   }
 
@@ -103,7 +175,7 @@ export class CacheManager {
     }
   }
 
-  // Invalidar múltiples keys por patrón
+  // Invalidar múltiples keys por patrón (usando SCAN para mejor rendimiento)
   async invalidatePattern(pattern: string): Promise<void> {
     const fullPattern = this.keyPrefix + pattern;
     
@@ -113,10 +185,27 @@ export class CacheManager {
         await redisInstance.connect();
       }
 
-      const keys = await this.redis.keys(fullPattern);
-      if (keys.length > 0) {
-        await this.redis.del(keys);
-        console.log(`🗑️ Invalidados ${keys.length} caches con patrón: ${pattern}`);
+      let cursor = 0;
+      let totalDeleted = 0;
+      const batchSize = 100; // Procesar en lotes de 100 keys
+      
+      do {
+        const result = await this.redis.scan(cursor, {
+          MATCH: fullPattern,
+          COUNT: batchSize
+        });
+        
+        cursor = result.cursor;
+        const keys = result.keys;
+        
+        if (keys.length > 0) {
+          await this.redis.del(keys);
+          totalDeleted += keys.length;
+        }
+      } while (cursor !== 0);
+      
+      if (totalDeleted > 0) {
+        console.log(`🗑️ Invalidados ${totalDeleted} caches con patrón: ${pattern}`);
       } else {
         console.log(`🔍 No se encontraron caches con patrón: ${pattern}`);
       }
@@ -125,7 +214,7 @@ export class CacheManager {
     }
   }
 
-  // Limpiar todo el cache
+  // Limpiar todo el cache (usando SCAN)
   async clear(): Promise<void> {
     try {
       const redisInstance = RedisClient.getInstance();
@@ -133,11 +222,27 @@ export class CacheManager {
         await redisInstance.connect();
       }
 
-      // Solo limpiar keys con nuestro prefijo
-      const keys = await this.redis.keys(this.keyPrefix + '*');
-      if (keys.length > 0) {
-        await this.redis.del(keys);
-        console.log(`🧹 Cache limpiado: ${keys.length} keys eliminadas`);
+      let cursor = 0;
+      let totalDeleted = 0;
+      const batchSize = 100;
+      
+      do {
+        const result = await this.redis.scan(cursor, {
+          MATCH: this.keyPrefix + '*',
+          COUNT: batchSize
+        });
+        
+        cursor = result.cursor;
+        const keys = result.keys;
+        
+        if (keys.length > 0) {
+          await this.redis.del(keys);
+          totalDeleted += keys.length;
+        }
+      } while (cursor !== 0);
+      
+      if (totalDeleted > 0) {
+        console.log(`🧹 Cache limpiado: ${totalDeleted} keys eliminadas`);
       } else {
         console.log('🧹 Cache ya estaba vacío');
       }
@@ -146,7 +251,7 @@ export class CacheManager {
     }
   }
 
-  // Obtener todas las keys del cache
+  // Obtener todas las keys del cache (usando SCAN)
   async getKeys(): Promise<string[]> {
     try {
       const redisInstance = RedisClient.getInstance();
@@ -154,8 +259,22 @@ export class CacheManager {
         await redisInstance.connect();
       }
 
-      const keys = await this.redis.keys(this.keyPrefix + '*');
-      return keys.map(key => key.replace(this.keyPrefix, ''));
+      const allKeys: string[] = [];
+      let cursor = 0;
+      const batchSize = 100;
+      
+      do {
+        const result = await this.redis.scan(cursor, {
+          MATCH: this.keyPrefix + '*',
+          COUNT: batchSize
+        });
+        
+        cursor = result.cursor;
+        const keys = result.keys.map(key => key.replace(this.keyPrefix, ''));
+        allKeys.push(...keys);
+      } while (cursor !== 0);
+      
+      return allKeys;
     } catch (error) {
       console.error('❌ Error obteniendo keys:', error);
       return [];

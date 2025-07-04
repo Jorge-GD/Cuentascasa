@@ -1,80 +1,16 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db/prisma'
-import { startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns'
+import { PresupuestosCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const cuentaId = searchParams.get('cuentaId')
-    const fecha = searchParams.get('fecha') || new Date().toISOString()
+    const fecha = searchParams.get('fecha')
 
-    const fechaRef = new Date(fecha)
-    const inicioMes = startOfMonth(fechaRef)
-    const finMes = endOfMonth(fechaRef)
-    const diasEnMes = getDaysInMonth(fechaRef)
-    const diaActual = fechaRef.getDate()
-    const diasRestantes = diasEnMes - diaActual
-
-    // Obtener categorías con presupuesto
-    const categorias = await prisma.categoria.findMany({
-      where: {
-        presupuesto: {
-          gt: 0
-        }
-      }
-    })
-
-    const presupuestosData = []
-
-    for (const categoria of categorias) {
-      // Calcular gasto actual de la categoría en el mes
-      const gastoActual = await prisma.movimiento.aggregate({
-        where: {
-          categoria: categoria.nombre,
-          fecha: {
-            gte: inicioMes,
-            lte: finMes
-          },
-          importe: {
-            lt: 0 // Solo gastos
-          },
-          ...(cuentaId && { cuentaId })
-        },
-        _sum: {
-          importe: true
-        }
-      })
-
-      const gastoTotal = Math.abs(gastoActual._sum.importe || 0)
-      const presupuestoMensual = categoria.presupuesto || 0
-      const porcentajeUsado = presupuestoMensual > 0 ? (gastoTotal / presupuestoMensual) * 100 : 0
-      
-      // Calcular proyección para fin de mes
-      const gastoDiario = gastoTotal / diaActual
-      const proyeccionFinMes = gastoDiario * diasEnMes
-
-      // Determinar estado
-      let estado: 'ok' | 'warning' | 'exceeded' = 'ok'
-      if (porcentajeUsado > 100) {
-        estado = 'exceeded'
-      } else if (porcentajeUsado > 80 || proyeccionFinMes > presupuestoMensual) {
-        estado = 'warning'
-      }
-
-      presupuestosData.push({
-        categoriaId: categoria.id,
-        categoria: categoria.nombre,
-        presupuestoMensual,
-        gastoActual: gastoTotal,
-        porcentajeUsado,
-        diasRestantes,
-        proyeccionFinMes,
-        estado
-      })
-    }
-
-    // Ordenar por porcentaje usado (más críticos primero)
-    presupuestosData.sort((a, b) => b.porcentajeUsado - a.porcentajeUsado)
+    const presupuestosData = await PresupuestosCache.getAnalysis(
+      cuentaId || undefined, 
+      fecha || undefined
+    )
 
     return NextResponse.json({
       success: true,
@@ -102,10 +38,14 @@ export async function POST(request: Request) {
     }
 
     // Actualizar el presupuesto de la categoría
+    const { prisma } = await import('@/lib/db/prisma')
     const categoria = await prisma.categoria.update({
       where: { id: categoriaId },
       data: { presupuesto: presupuesto > 0 ? presupuesto : null }
     })
+
+    // Invalidar cache de presupuestos
+    await PresupuestosCache.invalidateAll()
 
     return NextResponse.json({
       success: true,

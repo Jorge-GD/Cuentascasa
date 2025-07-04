@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDetailedCategoryAnalysis } from '@/lib/analytics/metrics'
+import { AnalyticsCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +14,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const categories = await getDetailedCategoryAnalysis(cuentaId, periodo)
+    // Para el cache necesitamos año y mes
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = periodo === 'mes' ? now.getMonth() + 1 : undefined
+
+    const categories = await AnalyticsCache.getCategoryAnalytics(cuentaId, year, month)
 
     return NextResponse.json({
       success: true,

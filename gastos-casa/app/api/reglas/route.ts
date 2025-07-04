@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getReglas, createRegla } from '@/lib/db/queries'
+import { ReglasCache, CacheInvalidator } from '@/lib/redis/cache-modules'
+import { createRegla } from '@/lib/db/queries'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const cuentaId = searchParams.get('cuentaId')
 
-    const reglas = await getReglas(cuentaId || undefined)
+    const reglas = await ReglasCache.getReglas(cuentaId || undefined)
 
     return NextResponse.json({
       success: true,
@@ -92,6 +93,9 @@ export async function POST(request: NextRequest) {
       activa: body.activa !== undefined ? body.activa : true,
       cuentaId: body.cuentaId || null
     })
+
+    // Invalidar cache después de crear regla
+    await CacheInvalidator.onReglaChange(body.cuentaId || undefined)
 
     return NextResponse.json({
       success: true,

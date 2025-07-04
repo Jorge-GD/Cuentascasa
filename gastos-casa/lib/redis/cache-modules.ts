@@ -1,4 +1,5 @@
 import { cacheManager } from './cache-manager';
+import { AnalyticsCache, Plan503020Cache, PresupuestosCache } from './analytics-cache';
 
 /**
  * Cache específico para Categorías
@@ -184,6 +185,140 @@ export class DashboardCache {
 }
 
 /**
+ * Cache específico para Movimientos
+ * TTL: 5 minutos (datos que cambian frecuentemente)
+ */
+export class MovimientosCache {
+  private static TTL = 300; // 5 minutos
+
+  static async getMovimientos(cuentaId?: string, limit?: number) {
+    const key = `movimientos:${cuentaId || 'all'}:${limit || 'no-limit'}`;
+    
+    return cacheManager.getOrSet(
+      key,
+      async () => {
+        console.log(`🔍 Consultando movimientos desde BD (cuenta: ${cuentaId || 'todas'}, limit: ${limit || 'sin límite'})...`);
+        const { getMovimientos } = await import('@/lib/db/queries');
+        return await getMovimientos(cuentaId, limit);
+      },
+      this.TTL
+    );
+  }
+
+  static async invalidateAccount(cuentaId: string) {
+    console.log(`🗑️ Invalidando cache movimientos para cuenta ${cuentaId}...`);
+    await cacheManager.invalidatePattern(`movimientos:${cuentaId}:*`);
+    await cacheManager.invalidatePattern('movimientos:all:*'); // También invalidar "todas las cuentas"
+  }
+
+  static async invalidateAll() {
+    console.log('🗑️ Invalidando TODO el cache de movimientos...');
+    await cacheManager.invalidatePattern('movimientos:*');
+  }
+}
+
+/**
+ * Cache específico para Configuración de Usuario
+ * TTL: 30 minutos (cambia ocasionalmente)
+ */
+export class ConfiguracionCache {
+  private static TTL = 1800; // 30 minutos
+
+  static async getConfiguracion() {
+    return cacheManager.getOrSet(
+      'configuracion:usuario',
+      async () => {
+        console.log('🔍 Consultando configuración de usuario desde BD...');
+        const { prisma } = await import('@/lib/db/prisma');
+        return await prisma.configuracionUsuario.findFirst({
+          include: {
+            metas: {
+              orderBy: { prioridad: 'asc' }
+            }
+          }
+        });
+      },
+      this.TTL
+    );
+  }
+
+  static async invalidate() {
+    console.log('🗑️ Invalidando cache de configuración...');
+    await cacheManager.del('configuracion:usuario');
+  }
+}
+
+/**
+ * Cache específico para Reglas de Categorización
+ * TTL: 20 minutos (cambian poco pero se consultan mucho)
+ */
+export class ReglasCache {
+  private static TTL = 1200; // 20 minutos
+
+  static async getReglas(cuentaId?: string) {
+    const key = `reglas:${cuentaId || 'global'}`;
+    
+    return cacheManager.getOrSet(
+      key,
+      async () => {
+        console.log(`🔍 Consultando reglas desde BD (cuenta: ${cuentaId || 'global'})...`);
+        const { getReglas } = await import('@/lib/db/queries');
+        return await getReglas(cuentaId);
+      },
+      this.TTL
+    );
+  }
+
+  static async invalidateAll() {
+    console.log('🗑️ Invalidando TODO el cache de reglas...');
+    await cacheManager.invalidatePattern('reglas:*');
+  }
+
+  static async invalidateAccount(cuentaId: string) {
+    console.log(`🗑️ Invalidando cache reglas para cuenta ${cuentaId}...`);
+    await Promise.all([
+      cacheManager.del(`reglas:${cuentaId}`),
+      cacheManager.del('reglas:global') // Las reglas globales también pueden afectar
+    ]);
+  }
+}
+
+/**
+ * Cache específico para Metas de Ahorro
+ * TTL: 1 hora (cambian poco frecuentemente)
+ */
+export class MetasAhorroCache {
+  private static TTL = 3600; // 1 hora
+
+  static async getAll() {
+    return cacheManager.getOrSet(
+      'metas-ahorro:all',
+      async () => {
+        const { prisma } = await import('@/lib/db/prisma');
+        console.log('🔍 Consultando metas de ahorro desde BD...');
+        
+        const configuracion = await prisma.configuracionUsuario.findFirst();
+        
+        if (!configuracion) {
+          return [];
+        }
+
+        return await prisma.metaAhorro.findMany({
+          where: { configuracionId: configuracion.id },
+          orderBy: { prioridad: 'asc' }
+        });
+      },
+      this.TTL
+    );
+  }
+
+  static async invalidateAll() {
+    console.log('🗑️ Invalidando cache de metas de ahorro...');
+    await cacheManager.invalidatePattern('metas-ahorro:*');
+  }
+}
+
+/**
  * Utilidad para invalidación en cascada
  */
 export class CacheInvalidator {
@@ -197,7 +332,10 @@ export class CacheInvalidator {
     
     await Promise.all([
       DashboardCache.invalidateAccount(cuentaId, year, month),
-      // Podemos agregar más invalidaciones aquí según vayamos implementando más caches
+      AnalyticsCache.invalidateAccountPeriod(cuentaId, year, month),
+      Plan503020Cache.invalidateCuentas([cuentaId], year, month),
+      PresupuestosCache.invalidateAnalysis(cuentaId),
+      MovimientosCache.invalidateAccount(cuentaId), // NUEVO
     ]);
   }
 
@@ -208,6 +346,32 @@ export class CacheInvalidator {
     await Promise.all([
       CategoriesCache.invalidateAll(),
       DashboardCache.invalidateAll(), // Las categorías afectan a los dashboards
+      AnalyticsCache.invalidateAll(),
+      Plan503020Cache.invalidateAll(),
+      PresupuestosCache.invalidateAll(),
+      ReglasCache.invalidateAll(), // NUEVO - Las categorías afectan las reglas
+    ]);
+  }
+
+  // Cuando se crea/actualiza/elimina una regla de categorización
+  static async onReglaChange(cuentaId?: string) {
+    console.log(`🔄 Invalidando caches por cambio en reglas: ${cuentaId || 'global'}`);
+    
+    if (cuentaId) {
+      await ReglasCache.invalidateAccount(cuentaId);
+    } else {
+      await ReglasCache.invalidateAll();
+    }
+  }
+
+  // Cuando se actualiza la configuración de usuario
+  static async onConfiguracionChange() {
+    console.log('🔄 Invalidando caches por cambio en configuración');
+    
+    await Promise.all([
+      ConfiguracionCache.invalidate(),
+      Plan503020Cache.invalidateAll(), // La configuración afecta el plan 50/30/20
+      MetasAhorroCache.invalidateAll(), // Las metas están incluidas en configuración
     ]);
   }
 

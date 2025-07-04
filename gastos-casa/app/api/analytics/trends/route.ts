@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTrendAnalysis } from '@/lib/analytics/metrics'
+import { AnalyticsCache } from '@/lib/redis/analytics-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const trends = await getTrendAnalysis(cuentaId, tipo, meses)
+    const trends = await AnalyticsCache.getTrendAnalysis(cuentaId, meses)
 
     return NextResponse.json({
       success: true,

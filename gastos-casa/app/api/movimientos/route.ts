@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getMovimientos, createMovimiento } from '@/lib/db/queries'
+import { MovimientosCache, CacheInvalidator } from '@/lib/redis/cache-modules'
+import { createMovimiento } from '@/lib/db/queries'
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
     const cuentaId = searchParams.get('cuentaId')
     const limit = searchParams.get('limit')
 
-    const movimientos = await getMovimientos(
+    const movimientos = await MovimientosCache.getMovimientos(
       cuentaId || undefined,
       limit ? parseInt(limit) : undefined
     )
@@ -95,6 +96,9 @@ export async function POST(request: NextRequest) {
         connect: { id: body.cuentaId }
       }
     })
+
+    // Invalidar cache después de crear movimiento
+    await CacheInvalidator.onMovimientoChange(body.cuentaId, fecha)
 
     return NextResponse.json({
       success: true,
