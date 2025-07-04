@@ -215,3 +215,6 @@ export function BudgetAlerts({ cuentaId, compact = false }: BudgetAlertsProps) {
     </Card>
   )
 }
+
+// Export por defecto para compatibilidad con dynamic imports
+export default BudgetAlerts

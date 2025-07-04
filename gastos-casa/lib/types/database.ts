@@ -25,6 +25,7 @@ export type CategoriaWithSubcategorias = Prisma.CategoriaGetPayload<{
 export type CreateCuentaInput = Prisma.CuentaCreateInput
 export type CreateMovimientoInput = Prisma.MovimientoCreateInput
 export type CreateCategoriaInput = Prisma.CategoriaCreateInput
+export type CreateSubcategoriaInput = Prisma.SubcategoriaCreateInput
 export type CreateReglaInput = Prisma.ReglaCategorizacionCreateInput
 
 // Enums
@@ -39,3 +40,26 @@ export enum TipoCoincidencia {
   TERMINA = 'termina',
   REGEX = 'regex'
 }
+
+export enum Tipo503020 {
+  NECESIDADES = 'necesidades',
+  DESEOS = 'deseos',
+  AHORRO = 'ahorro'
+}
+
+export enum TipoMeta {
+  EMERGENCIA = 'emergencia',
+  DEUDA = 'deuda',
+  META_PERSONAL = 'meta_personal'
+}
+
+// New types for 50/30/20 module
+export type ConfiguracionUsuario = Prisma.ConfiguracionUsuarioGetPayload<{}>
+export type MetaAhorro = Prisma.MetaAhorroGetPayload<{}>
+
+export type ConfiguracionUsuarioWithMetas = Prisma.ConfiguracionUsuarioGetPayload<{
+  include: { metas: true }
+}>
+
+export type CreateConfiguracionUsuarioInput = Prisma.ConfiguracionUsuarioCreateInput
+export type CreateMetaAhorroInput = Prisma.MetaAhorroCreateInput

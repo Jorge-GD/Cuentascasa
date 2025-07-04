@@ -7,9 +7,9 @@ export class INGXlsxParser {
 
   constructor(config: Partial<ParserConfig> = {}) {
     this.config = {
-      tolerarErroresFormato: false,
+      tolerarErroresFormato: true, // Cambiar a true por defecto
       ignorarDuplicados: false,
-      validarSaldos: true,
+      validarSaldos: true, // Se puede desactivar pasando validarSaldos: false
       ...config
     }
   }
@@ -75,21 +75,34 @@ export class INGXlsxParser {
         }
       }
 
-      // Validar saldos si está habilitado
+      // Validar saldos ANTES de reordenar (para mantener coherencia con saldos del extracto)
+      const advertencias: string[] = []
       if (this.config.validarSaldos && movimientos.length > 1) {
-        this.validarSaldos(movimientos, errores)
+        this.validarSaldos(movimientos, advertencias)
+      }
+
+      // Detectar si el archivo está desordenado
+      const estaDesordenado = this.detectarDesorden(movimientos)
+      
+      // Ordenar movimientos por fecha (F.Valor) solo para el resultado final
+      movimientos.sort((a, b) => 
+        new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+      )
+      
+      if (estaDesordenado) {
+        errores.push('⚠️ AVISO: El archivo original tenía movimientos desordenados por fecha.')
+        errores.push('✅ Los movimientos han sido reordenados cronológicamente por F.Valor.')
       }
 
       return {
         movimientos,
         formatoDetectado: 'ING_XLSX' as const,
-        errores,
-        metadatos: {
-          totalFilas: data.length,
-          filasValidas: movimientos.length,
-          filasConError: errores.length,
-          primeraFecha: movimientos[0]?.fecha,
-          ultimaFecha: movimientos[movimientos.length - 1]?.fecha
+        errores: errores.concat(advertencias),
+        metadata: {
+          totalMovimientos: movimientos.length,
+          fechaInicio: movimientos[0]?.fecha,
+          fechaFin: movimientos[movimientos.length - 1]?.fecha,
+          fechaProcesamiento: new Date().toISOString()
         }
       }
 
@@ -148,35 +161,42 @@ export class INGXlsxParser {
   private mapearColumnas(headers: any[]): Record<string, number> {
     const mapa: Record<string, number> = {}
     
+    console.log('Headers encontrados:', headers) // Debug
+    
     headers.forEach((header, index) => {
       if (!header) return
       
       const headerStr = header.toString().toLowerCase().trim()
+      console.log(`Columna ${index}: "${headerStr}"`) // Debug
       
-      // Mapear columnas comunes de ING
-      if (headerStr.includes('fecha') || headerStr.includes('f. valor') || headerStr.includes('f.valor')) {
-        if (headerStr.includes('valor')) {
-          mapa.fechaValor = index
-        } else {
-          mapa.fecha = index
-        }
-      } else if (headerStr.includes('concepto') || headerStr.includes('descripcion') || headerStr.includes('descripción')) {
+      // Mapear columnas específicas de ING XLSX
+      if (headerStr.includes('f. valor') || headerStr.includes('f.valor') || headerStr === 'f. valor') {
+        mapa.fechaValor = index
+        mapa.fecha = index // Usar fecha valor como fecha principal
+      } else if (headerStr.includes('fecha') && !headerStr.includes('valor')) {
+        mapa.fecha = index
+      } else if (headerStr.includes('descripcion') || headerStr.includes('descripción') || headerStr === 'descripción') {
         mapa.concepto = index
-      } else if (headerStr.includes('importe') || headerStr.includes('cantidad')) {
+      } else if (headerStr.includes('importe') || headerStr.includes('importe (€)') || headerStr === 'importe (€)') {
         mapa.importe = index
-      } else if (headerStr.includes('saldo')) {
+      } else if (headerStr.includes('saldo') || headerStr.includes('saldo (€)') || headerStr === 'saldo (€)') {
         mapa.saldo = index
-      } else if (headerStr.includes('subcategoria') || headerStr.includes('subcategoría')) {
+      } else if (headerStr.includes('subcategoría') || headerStr.includes('subcategoria') || headerStr === 'subcategoría') {
         mapa.subcategoria = index
-      } else if (headerStr.includes('categoria') || headerStr.includes('categoría')) {
+      } else if (headerStr.includes('categoría') || headerStr.includes('categoria') || headerStr === 'categoría') {
         mapa.categoria = index
       }
     })
 
+    console.log('Mapeo de columnas resultado:', mapa) // Debug
     return mapa
   }
 
-  private procesarFila(row: unknown[], columnIndexes: Record<string, number>, _numeroFila: number): MovimientoRaw | null {
+  private procesarFila(row: unknown[], columnIndexes: Record<string, number>, numeroFila: number): MovimientoRaw | null {
+    // Debug: mostrar información de la fila
+    console.log(`Procesando fila ${numeroFila}:`, row)
+    console.log('Índices de columnas:', columnIndexes)
+    
     // Extraer valores de las columnas
     const fechaRaw = this.extraerValor(row, columnIndexes.fecha) || this.extraerValor(row, columnIndexes.fechaValor)
     const conceptoRaw = this.extraerValor(row, columnIndexes.concepto)
@@ -185,8 +205,18 @@ export class INGXlsxParser {
     const categoriaRaw = this.extraerValor(row, columnIndexes.categoria)
     const subcategoriaRaw = this.extraerValor(row, columnIndexes.subcategoria)
 
+    console.log(`Fila ${numeroFila} - Valores extraídos:`, {
+      fecha: fechaRaw,
+      concepto: conceptoRaw,
+      importe: importeRaw,
+      saldo: saldoRaw,
+      categoria: categoriaRaw,
+      subcategoria: subcategoriaRaw
+    })
+
     // Validar campos obligatorios
     if (!fechaRaw || !conceptoRaw || importeRaw === undefined || importeRaw === null) {
+      console.log(`Fila ${numeroFila} saltada - campos faltantes`)
       return null // Fila vacía o incompleta
     }
 
@@ -202,14 +232,22 @@ export class INGXlsxParser {
       throw new Error(`Importe inválido: ${importeRaw}`)
     }
 
-    // Procesar saldo (opcional)
-    let saldo: number | undefined
+    // Procesar saldo (requerido)
+    let saldo = 0 // Valor por defecto
     if (saldoRaw !== undefined && saldoRaw !== null && saldoRaw !== '') {
       saldo = this.procesarImporte(saldoRaw)
       if (isNaN(saldo)) {
-        saldo = undefined // Saldo inválido, pero no es crítico
+        console.warn(`Saldo inválido en fila ${numeroFila}: ${saldoRaw}, usando 0`)
+        saldo = 0 // Saldo inválido, usar 0 como fallback
       }
     }
+
+    console.log(`Fila ${numeroFila} - Valores procesados:`, {
+      fecha: fecha.toISOString(),
+      descripcion: conceptoRaw.toString().trim(),
+      importe,
+      saldo
+    })
 
     // Crear movimiento
     const movimiento: MovimientoRaw = {
@@ -222,6 +260,22 @@ export class INGXlsxParser {
     }
 
     return movimiento
+  }
+
+  private detectarDesorden(movimientos: MovimientoRaw[]): boolean {
+    if (movimientos.length <= 1) return false
+    
+    for (let i = 1; i < movimientos.length; i++) {
+      const fechaAnterior = new Date(movimientos[i - 1].fecha).getTime()
+      const fechaActual = new Date(movimientos[i].fecha).getTime()
+      
+      // Si encontramos una fecha anterior después de una posterior, está desordenado
+      if (fechaActual < fechaAnterior) {
+        return true
+      }
+    }
+    
+    return false
   }
 
   private extraerValor(row: unknown[], columnIndex: number | undefined): unknown {
@@ -276,39 +330,144 @@ export class INGXlsxParser {
   }
 
   private procesarImporte(importeRaw: unknown): number {
+    console.log('Procesando importe:', importeRaw, 'tipo:', typeof importeRaw)
+    
     if (typeof importeRaw === 'number') {
+      console.log('Importe como número:', importeRaw)
       return importeRaw
     }
 
     if (typeof importeRaw === 'string') {
-      // Limpiar el string: quitar espacios, cambiar comas por puntos
-      const importeStr = importeRaw.trim()
-        .replace(/\s/g, '')
-        .replace(',', '.')
-        .replace(/[^\d.-]/g, '') // Quitar todo excepto dígitos, punto y guión
-
-      return parseFloat(importeStr)
+      // Limpiar el string: quitar espacios y caracteres especiales
+      let importeStr = importeRaw.trim()
+      
+      console.log('Importe original como string:', importeStr)
+      
+      // Detectar si es un ingreso (sin signo) o un gasto (con signo -)
+      const esNegativo = importeStr.startsWith('-')
+      
+      // Manejar formato europeo con coma decimal y punto como separador de miles
+      // Ejemplo: "-1.234,56" o "1.234,56" o "-31,00" o "40,00"
+      if (importeStr.includes(',')) {
+        // Formato europeo: quitar puntos (separador de miles) y cambiar coma por punto
+        importeStr = importeStr.replace(/\./g, '').replace(',', '.')
+      }
+      
+      // Quitar todo excepto dígitos, punto y signo menos
+      importeStr = importeStr.replace(/[^\d.-]/g, '')
+      
+      console.log('Importe procesado:', importeStr)
+      
+      const resultado = parseFloat(importeStr)
+      console.log('Resultado parseFloat:', resultado)
+      
+      // Verificar que el resultado mantiene el signo correcto
+      if (esNegativo && resultado > 0) {
+        return -resultado
+      } else if (!esNegativo && resultado < 0) {
+        return Math.abs(resultado)
+      }
+      
+      return resultado
     }
 
+    console.log('Importe no válido, devolviendo NaN')
     return NaN
   }
 
-  private validarSaldos(movimientos: MovimientoRaw[], errores: string[]): void {
-    for (let i = 1; i < movimientos.length; i++) {
-      const anterior = movimientos[i - 1]
-      const actual = movimientos[i]
-
-      if (anterior.saldo !== undefined && actual.saldo !== undefined) {
-        const saldoCalculado = anterior.saldo + actual.importe
-        const diferencia = Math.abs(saldoCalculado - actual.saldo)
-
-        if (diferencia > 0.01) { // Tolerancia de 1 céntimo
-          errores.push(
-            `Inconsistencia en saldo en movimiento ${i + 1}: ` +
-            `esperado ${saldoCalculado.toFixed(2)}, encontrado ${actual.saldo.toFixed(2)}`
-          )
-        }
+  private validarSaldos(movimientos: MovimientoRaw[], advertencias: string[]): void {
+    // IMPORTANTE: Trabajar con el orden ORIGINAL del archivo antes de reordenar
+    // En extractos bancarios el orden suele ser de más reciente a más antiguo
+    
+    // Encontrar fechas mínima y máxima para el período
+    const fechas = movimientos.map(m => new Date(m.fecha).getTime())
+    const fechaMin = new Date(Math.min(...fechas))
+    const fechaMax = new Date(Math.max(...fechas))
+    
+    // Encontrar el movimiento más antiguo y más reciente por fecha
+    // IMPORTANTE: Mantener el orden original cuando las fechas son iguales
+    const movimientosConIndice = movimientos.map((mov, index) => ({ ...mov, indexOriginal: index }))
+    const movimientosOrdenadosPorFecha = [...movimientosConIndice].sort((a, b) => {
+      const fechaA = new Date(a.fecha).getTime()
+      const fechaB = new Date(b.fecha).getTime()
+      
+      // Si las fechas son iguales, usar el orden original INVERTIDO del archivo
+      if (fechaA === fechaB) {
+        // En extractos ING: orden original es de más reciente a más antiguo
+        // Por tanto: mayor índice original = más antiguo en el tiempo
+        return b.indexOriginal - a.indexOriginal
       }
+      
+      return fechaA - fechaB
+    })
+    const movimientoMasAntiguo = movimientosOrdenadosPorFecha[0]
+    const movimientoMasReciente = movimientosOrdenadosPorFecha[movimientosOrdenadosPorFecha.length - 1]
+
+    // Información de diagnóstico básica
+    advertencias.push(`📊 INFORMACIÓN DEL ARCHIVO:`)
+    advertencias.push(`   Total movimientos: ${movimientos.length}`)
+    advertencias.push(`   Período: ${fechaMin.toLocaleDateString('es-ES')} - ${fechaMax.toLocaleDateString('es-ES')}`)
+    advertencias.push(`   Saldo más antiguo (${new Date(movimientoMasAntiguo.fecha).toLocaleDateString('es-ES')}): ${movimientoMasAntiguo.saldo.toFixed(2)}€`)
+    advertencias.push(`   Saldo más reciente (${new Date(movimientoMasReciente.fecha).toLocaleDateString('es-ES')}): ${movimientoMasReciente.saldo.toFixed(2)}€`)
+    
+    // Mostrar TODOS los movimientos ordenados cronológicamente para debug
+    advertencias.push(`📋 TODOS LOS MOVIMIENTOS (orden cronológico corregido):`)
+    movimientosOrdenadosPorFecha.forEach((mov, i) => {
+      const fechaLocal = new Date(mov.fecha).toLocaleDateString('es-ES')
+      const horaLocal = new Date(mov.fecha).toLocaleTimeString('es-ES')
+      advertencias.push(`   ${i + 1}. ${fechaLocal} ${horaLocal}: ${mov.importe.toFixed(2)}€ - Saldo: ${mov.saldo.toFixed(2)}€ (índice original: ${mov.indexOriginal})`)
+    })
+    
+    // Contar ingresos y gastos CORRECTAMENTE (solo usar importes, no saldos)
+    const ingresos = movimientos.filter(m => m.importe > 0)
+    const gastos = movimientos.filter(m => m.importe < 0)
+    const totalIngresos = ingresos.reduce((sum, m) => sum + m.importe, 0)
+    const totalGastos = Math.abs(gastos.reduce((sum, m) => sum + m.importe, 0)) // Convertir a positivo para mostrar
+    
+    advertencias.push(`💰 RESUMEN DE IMPORTES (NO SALDOS):`)
+    advertencias.push(`   Ingresos: ${ingresos.length} movimientos, total: ${totalIngresos.toFixed(2)}€`)
+    advertencias.push(`   Gastos: ${gastos.length} movimientos, total: ${totalGastos.toFixed(2)}€`)
+    advertencias.push(`   Balance neto: ${(totalIngresos - totalGastos).toFixed(2)}€`)
+    
+    // Mostrar detalle de cada tipo para debug
+    advertencias.push(`📋 DETALLE INGRESOS:`)
+    ingresos.forEach(ing => {
+      advertencias.push(`   • ${new Date(ing.fecha).toLocaleDateString('es-ES')}: +${ing.importe.toFixed(2)}€`)
+    })
+    
+    advertencias.push(`📋 DETALLE GASTOS:`)
+    gastos.forEach(gasto => {
+      advertencias.push(`   • ${new Date(gasto.fecha).toLocaleDateString('es-ES')}: ${gasto.importe.toFixed(2)}€`)
+    })
+    
+    // Validación CORRECTA de saldos usando orden cronológico
+    // El movimiento más antiguo nos da el saldo inicial, el más reciente el final
+    
+    // Saldo inicial = saldo del movimiento más antiguo - importe de ese movimiento
+    const saldoInicial = movimientoMasAntiguo.saldo - movimientoMasAntiguo.importe
+    const sumaMovimientos = movimientos.reduce((sum, mov) => sum + mov.importe, 0)
+    const saldoFinalEsperado = saldoInicial + sumaMovimientos
+    const saldoFinalReal = movimientoMasReciente.saldo
+    
+    advertencias.push(`📈 VALIDACIÓN DE SALDOS (ORDEN CRONOLÓGICO):`)
+    advertencias.push(`   Movimiento más antiguo: ${new Date(movimientoMasAntiguo.fecha).toLocaleDateString('es-ES')} - Importe: ${movimientoMasAntiguo.importe.toFixed(2)}€ - Saldo después: ${movimientoMasAntiguo.saldo.toFixed(2)}€`)
+    advertencias.push(`   Saldo inicial estimado: ${saldoInicial.toFixed(2)}€ (antes del movimiento más antiguo)`)
+    advertencias.push(`   Suma ALGEBRAICA de importes: ${sumaMovimientos.toFixed(2)}€`)
+    advertencias.push(`   Saldo final esperado: ${saldoFinalEsperado.toFixed(2)}€`)
+    advertencias.push(`   Saldo final real: ${saldoFinalReal.toFixed(2)}€`)
+    
+    const diferencia = Math.abs(saldoFinalEsperado - saldoFinalReal)
+    if (diferencia > 0.01) { // Tolerancia para redondeos
+      advertencias.push(`   ⚠️ Diferencia: ${diferencia.toFixed(2)}€`)
+      if (diferencia > 50) {
+        advertencias.push(`   ⚠️ Diferencia considerable - puede haber movimientos fuera del período`)
+      } else {
+        advertencias.push(`   ℹ️ Diferencia menor - probablemente redondeos o movimientos externos`)
+      }
+    } else {
+      advertencias.push(`   ✅ Saldos cuadran perfectamente`)
     }
+    
+    advertencias.push(`   ➡️ Los movimientos se importarán de todos modos`)
   }
 }

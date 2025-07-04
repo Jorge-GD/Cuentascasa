@@ -3,9 +3,11 @@ import type {
   Cuenta,
   Movimiento,
   Categoria,
+  Subcategoria,
   CreateCuentaInput,
   CreateMovimientoInput,
   CreateCategoriaInput,
+  CreateSubcategoriaInput,
   CuentaWithMovimientos,
   CategoriaWithSubcategorias
 } from '../types/database'
@@ -203,6 +205,27 @@ export async function updateCategoria(id: string, data: Partial<CreateCategoriaI
 
 export async function deleteCategoria(id: string): Promise<Categoria> {
   return prisma.categoria.delete({
+    where: { id }
+  })
+}
+
+// ========== SUBCATEGORÍAS ==========
+
+export async function createSubcategoria(data: CreateSubcategoriaInput): Promise<Subcategoria> {
+  return prisma.subcategoria.create({
+    data
+  })
+}
+
+export async function updateSubcategoria(id: string, data: Partial<CreateSubcategoriaInput>): Promise<Subcategoria> {
+  return prisma.subcategoria.update({
+    where: { id },
+    data
+  })
+}
+
+export async function deleteSubcategoria(id: string): Promise<Subcategoria> {
+  return prisma.subcategoria.delete({
     where: { id }
   })
 }

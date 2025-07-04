@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     let rawMovimientos
+    const advertencias: string[] = []
 
     // Parse según el tipo
     if (type === 'pdf') {
@@ -46,10 +47,41 @@ export async function POST(request: NextRequest) {
       const parseResult = await parseINGPdf(buffer)
       
       if (parseResult.errores.length > 0) {
-        return NextResponse.json(
-          { success: false, error: parseResult.errores.join('; ') },
-          { status: 400 }
+        // Para PDFs, también tratamos algunos errores como advertencias
+        const erroresFatales = parseResult.errores.filter(error => 
+          !error.includes('saldo en movimiento') && 
+          !error.includes('Diferencia:') &&
+          !error.includes('Advertencia') &&
+          !error.includes('📊') &&
+          !error.includes('💰') &&
+          !error.includes('📋') &&
+          !error.includes('📈') &&
+          !error.includes('⚠️') &&
+          !error.includes('✅') &&
+          !error.includes('ℹ️') &&
+          !error.includes('➡️')
         )
+        
+        if (erroresFatales.length > 0) {
+          return NextResponse.json(
+            { success: false, error: erroresFatales.join('; ') },
+            { status: 400 }
+          )
+        }
+        
+        advertencias.push(...parseResult.errores.filter(error => 
+          error.includes('saldo en movimiento') || 
+          error.includes('Diferencia:') ||
+          error.includes('Advertencia') ||
+          error.includes('📊') ||
+          error.includes('💰') ||
+          error.includes('📋') ||
+          error.includes('📈') ||
+          error.includes('⚠️') ||
+          error.includes('✅') ||
+          error.includes('ℹ️') ||
+          error.includes('➡️')
+        ))
       }
 
       rawMovimientos = parseResult.movimientos
@@ -78,17 +110,41 @@ export async function POST(request: NextRequest) {
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       
-      const xlsxParser = new INGXlsxParser()
+      const disableValidation = formData.get('disableValidation') === 'true'
+      const xlsxParser = new INGXlsxParser({
+        // Permitir desactivar validación de saldos si el usuario lo especifica
+        validarSaldos: !disableValidation
+      })
       const parseResult = await xlsxParser.parse(buffer)
       
-      if (parseResult.errores.length > 0) {
+      // Para archivos XLSX, solo consideramos errores fatales aquellos que indican problemas de parsing serios
+      // Toda la información diagnóstica (que incluye validaciones exitosas) se trata como advertencias
+      const erroresFatales = parseResult.errores.filter(error => {
+        // Solo son errores fatales si contienen palabras que indican problemas reales
+        const esFatal = error.includes('Error parsing') ||
+                       error.includes('No se pudo') ||
+                       error.includes('Formato inválido') ||
+                       error.includes('Archivo corrupto') ||
+                       (error.includes('Error') && !error.includes('📊') && !error.includes('💰') && !error.includes('📋') && !error.includes('📈'))
+        
+        // Si no es un error fatal obvio, lo tratamos como información diagnóstica
+        return esFatal
+      })
+      
+      if (erroresFatales.length > 0) {
         return NextResponse.json(
-          { success: false, error: parseResult.errores.join('; ') },
+          { success: false, error: erroresFatales.join('; ') },
           { status: 400 }
         )
       }
 
       rawMovimientos = parseResult.movimientos
+      
+      // Si hay advertencias de saldos, las incluiremos en la respuesta pero no bloquearemos el procesamiento
+      if (parseResult.errores.length > 0) {
+        advertencias.push(...parseResult.errores)
+        console.warn('Advertencias en el procesamiento del XLSX:', parseResult.errores)
+      }
     } else if (type === 'text') {
       const text = formData.get('text') as string
       if (!text?.trim()) {
@@ -101,16 +157,47 @@ export async function POST(request: NextRequest) {
       const parseResult = parseINGText(text)
       
       if (parseResult.errores.length > 0) {
-        return NextResponse.json(
-          { success: false, error: parseResult.errores.join('; ') },
-          { status: 400 }
+        // Para texto, también tratamos algunos errores como advertencias
+        const erroresFatales = parseResult.errores.filter(error => 
+          !error.includes('saldo en movimiento') && 
+          !error.includes('Diferencia:') &&
+          !error.includes('Advertencia') &&
+          !error.includes('📊') &&
+          !error.includes('💰') &&
+          !error.includes('📋') &&
+          !error.includes('📈') &&
+          !error.includes('⚠️') &&
+          !error.includes('✅') &&
+          !error.includes('ℹ️') &&
+          !error.includes('➡️')
         )
+        
+        if (erroresFatales.length > 0) {
+          return NextResponse.json(
+            { success: false, error: erroresFatales.join('; ') },
+            { status: 400 }
+          )
+        }
+        
+        advertencias.push(...parseResult.errores.filter(error => 
+          error.includes('saldo en movimiento') || 
+          error.includes('Diferencia:') ||
+          error.includes('Advertencia') ||
+          error.includes('📊') ||
+          error.includes('💰') ||
+          error.includes('📋') ||
+          error.includes('📈') ||
+          error.includes('⚠️') ||
+          error.includes('✅') ||
+          error.includes('ℹ️') ||
+          error.includes('➡️')
+        ))
       }
 
       rawMovimientos = parseResult.movimientos
     } else {
       return NextResponse.json(
-        { success: false, error: 'Tipo no válido. Use "pdf" o "text"' },
+        { success: false, error: 'Tipo no válido. Use "pdf", "xlsx" o "text"' },
         { status: 400 }
       )
     }
@@ -131,6 +218,13 @@ export async function POST(request: NextRequest) {
 
     // Aplicar categorización automática
     const categorizationEngine = new CategorizationEngine()
+    await categorizationEngine.loadRulesFromDB(cuentaId)
+    
+    // Debug: verificar reglas cargadas
+    const loadedRules = categorizationEngine.getRules()
+    console.log(`Reglas cargadas para cuenta ${cuentaId}:`, loadedRules.length)
+    console.log('Reglas activas:', loadedRules.filter(r => r.activa).map(r => r.nombre))
+    
     const categorizedMovimientos = categorizationEngine.categorizeMovimientos(rawMovimientos)
 
     // Ajustar confianza basada en detección de duplicados
@@ -161,7 +255,8 @@ export async function POST(request: NextRequest) {
       data: {
         movimientos: finalMovimientos,
         stats,
-        duplicateInfo: Object.fromEntries(duplicateResults)
+        duplicateInfo: Object.fromEntries(duplicateResults),
+        advertencias: advertencias.length > 0 ? advertencias : undefined
       }
     })
 

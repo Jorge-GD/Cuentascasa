@@ -157,3 +157,6 @@ export const MonthlyTrendChart = memo(MonthlyTrendChartComponent, (prevProps, ne
            item.balance === nextItem.balance
   })
 })
+
+// Export por defecto para compatibilidad con dynamic imports
+export default MonthlyTrendChart

@@ -1,5 +1,6 @@
 import { format, differenceInDays, addDays, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { COLORS, getChartColor } from '@/lib/constants/colors'
 
 export interface MovimientoSimple {
   fecha: Date
@@ -213,18 +214,12 @@ export function getVariationColor(variation: number, isExpense: boolean = true):
 }
 
 /**
- * Genera colores para categorías
+ * Genera colores para categorías usando la paleta consistente
  */
 export function generateCategoryColors(categories: string[]): Record<string, string> {
-  const colors = [
-    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
-    '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280', '#f59e0b',
-    '#10b981', '#8b5cf6', '#f43f5e', '#06b6d4', '#84cc16'
-  ]
-
   const colorMap: Record<string, string> = {}
   categories.forEach((category, index) => {
-    colorMap[category] = colors[index % colors.length]
+    colorMap[category] = getChartColor(index)
   })
 
   return colorMap

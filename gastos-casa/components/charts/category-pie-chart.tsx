@@ -10,6 +10,7 @@ import {
   Legend 
 } from 'recharts'
 import { formatCurrency } from '@/lib/analytics/calculations'
+import { COLORS, getChartColor } from '@/lib/constants/colors'
 
 interface CategoryPieChartProps {
   data: Array<{
@@ -19,22 +20,11 @@ interface CategoryPieChartProps {
     transacciones: number
   }>
   height?: number
+  onCategoryClick?: (categoria: string) => void
 }
 
-const COLORS = [
-  '#ef4444', // red-500
-  '#f97316', // orange-500
-  '#eab308', // yellow-500
-  '#22c55e', // green-500
-  '#06b6d4', // cyan-500
-  '#3b82f6', // blue-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#6b7280', // gray-500
-  '#f59e0b', // amber-500
-]
 
-function CategoryPieChartComponent({ data, height = 300 }: CategoryPieChartProps) {
+function CategoryPieChartComponent({ data, height = 300, onCategoryClick }: CategoryPieChartProps) {
   const CustomTooltip = useCallback(({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
@@ -50,11 +40,22 @@ function CategoryPieChartComponent({ data, height = 300 }: CategoryPieChartProps
           <p className="text-sm text-muted-foreground">
             {data.transacciones} transacciones
           </p>
+          {onCategoryClick && (
+            <p className="text-xs text-blue-600 mt-1">
+              Click para filtrar por esta categoría
+            </p>
+          )}
         </div>
       )
     }
     return null
-  }, [])
+  }, [onCategoryClick])
+
+  const handlePieClick = useCallback((data: any) => {
+    if (onCategoryClick && data && data.categoria) {
+      onCategoryClick(data.categoria)
+    }
+  }, [onCategoryClick])
 
   const CustomLabel = useCallback(({ cx, cy, midAngle, innerRadius, outerRadius, porcentaje }: any) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5
@@ -102,11 +103,13 @@ function CategoryPieChartComponent({ data, height = 300 }: CategoryPieChartProps
             outerRadius={height * 0.35}
             fill="#8884d8"
             dataKey="total"
+            onClick={handlePieClick}
+            className={onCategoryClick ? "cursor-pointer" : ""}
           >
             {data.map((entry, index) => (
               <Cell 
                 key={`cell-${index}`} 
-                fill={COLORS[index % COLORS.length]} 
+                fill={getChartColor(index)} 
               />
             ))}
           </Pie>
@@ -117,11 +120,17 @@ function CategoryPieChartComponent({ data, height = 300 }: CategoryPieChartProps
       {/* Legend personalizada */}
       <div className="grid grid-cols-1 gap-2 text-sm">
         {data.map((entry, index) => (
-          <div key={entry.categoria} className="flex items-center justify-between">
+          <div 
+            key={entry.categoria} 
+            className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+              onCategoryClick ? 'cursor-pointer hover:bg-gray-50' : ''
+            }`}
+            onClick={() => onCategoryClick && onCategoryClick(entry.categoria)}
+          >
             <div className="flex items-center space-x-2">
               <div 
                 className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                style={{ backgroundColor: getChartColor(index) }}
               />
               <span className="font-medium">{entry.categoria}</span>
             </div>
@@ -153,3 +162,6 @@ export const CategoryPieChart = memo(CategoryPieChartComponent, (prevProps, next
            item.porcentaje === nextItem.porcentaje
   })
 })
+
+// Export por defecto para compatibilidad con dynamic imports
+export default CategoryPieChart

@@ -211,7 +211,9 @@ export const useCuentaStore = create<CuentaState>()(
       name: 'cuenta-storage',
       partialize: (state) => ({ 
         cuentaActiva: state.cuentaActiva 
-      })
+      }),
+      // Evitar errores de hidratación
+      skipHydration: true,
     }
   )
 )

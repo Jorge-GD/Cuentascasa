@@ -1,4 +1,4 @@
-import { Home, CreditCard, Upload, Settings, BarChart3, FileText, Target } from 'lucide-react'
+import { Home, CreditCard, Upload, Settings, BarChart3, FileText, Target, TrendingUp } from 'lucide-react'
 
 export interface NavItem {
   title: string
@@ -35,6 +35,11 @@ export const mainNavigation: NavItem[] = [
     title: 'Importar',
     href: '/importar',
     icon: Upload,
+  },
+  {
+    title: 'Análisis Comparativo',
+    href: '/analisis-comparativo',
+    icon: TrendingUp,
   },
   {
     title: 'Configuración',
@@ -75,6 +80,7 @@ export const routes = {
     annual: (id: string, year: number) => `/cuentas/${id}/anual/${year}`,
   },
   importar: '/importar',
+  analisisComparativo: '/analisis-comparativo',
   configuracion: {
     index: '/configuracion',
     categorias: '/configuracion/categorias',

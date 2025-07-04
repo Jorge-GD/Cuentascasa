@@ -2,6 +2,8 @@ import type { MovimientoRaw, ValidationResult, ErrorParser, TipoErrorParser, Par
 
 export class MovimientoValidator {
   private config: ParserConfig
+  private esCuentaNueva: boolean = false
+  private saldoInicial?: number
 
   constructor(config: Partial<ParserConfig> = {}) {
     this.config = {
@@ -12,6 +14,12 @@ export class MovimientoValidator {
       fechaMaxima: new Date(Date.now() + 86400000), // Mañana
       ...config
     }
+  }
+
+  // Método para indicar que se está validando una cuenta nueva
+  setCuentaNueva(esCuentaNueva: boolean, saldoInicial?: number) {
+    this.esCuentaNueva = esCuentaNueva
+    this.saldoInicial = saldoInicial
   }
 
   validate(movimientos: MovimientoRaw[]): ValidationResult {
@@ -208,7 +216,34 @@ export class MovimientoValidator {
       new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
     )
 
-    for (let i = 1; i < movimientosOrdenados.length; i++) {
+    // Si es una cuenta nueva y no tenemos historial completo, informar al usuario
+    if (this.esCuentaNueva && movimientosOrdenados.length > 0) {
+      advertencias.push(
+        `Validación de saldos en cuenta nueva: se usará el primer movimiento como referencia base ` +
+        `(saldo: ${movimientosOrdenados[0].saldo.toFixed(2)})`
+      )
+    }
+
+    // Determinar desde qué índice empezar la validación
+    const indiceInicio = 1
+    
+    // Si es cuenta nueva, validar que el primer movimiento tenga sentido
+    if (this.esCuentaNueva && this.saldoInicial !== undefined) {
+      const primerMovimiento = movimientosOrdenados[0]
+      const saldoEsperadoPrimero = this.saldoInicial + primerMovimiento.importe
+      const diferenciaPrimero = Math.abs(saldoEsperadoPrimero - primerMovimiento.saldo)
+      
+      if (diferenciaPrimero > 0.01) {
+        advertencias.push(
+          `Posible inconsistencia en el primer movimiento: ` +
+          `con saldo inicial ${this.saldoInicial.toFixed(2)} + importe ${primerMovimiento.importe.toFixed(2)} ` +
+          `se esperaría ${saldoEsperadoPrimero.toFixed(2)}, pero se encontró ${primerMovimiento.saldo.toFixed(2)}`
+        )
+      }
+    }
+
+    // Validar secuencia desde el segundo movimiento
+    for (let i = indiceInicio; i < movimientosOrdenados.length; i++) {
       const anterior = movimientosOrdenados[i - 1]
       const actual = movimientosOrdenados[i]
       
@@ -220,10 +255,20 @@ export class MovimientoValidator {
       const tolerancia = 0.01
       
       if (diferencia > tolerancia) {
-        advertencias.push(
-          `Inconsistencia en saldo del movimiento ${i + 1}: ` +
-          `esperado ${saldoEsperado.toFixed(2)}, encontrado ${actual.saldo.toFixed(2)}`
-        )
+        // Para cuentas nuevas, dar más contexto sobre la advertencia
+        if (this.esCuentaNueva) {
+          advertencias.push(
+            `Inconsistencia en secuencia del movimiento ${i + 1}: ` +
+            `saldo anterior ${anterior.saldo.toFixed(2)} + importe ${actual.importe.toFixed(2)} = ` +
+            `${saldoEsperado.toFixed(2)}, pero el archivo reporta ${actual.saldo.toFixed(2)}. ` +
+            `Esto puede indicar movimientos faltantes o errores en el archivo bancario.`
+          )
+        } else {
+          advertencias.push(
+            `Inconsistencia en saldo del movimiento ${i + 1}: ` +
+            `esperado ${saldoEsperado.toFixed(2)}, encontrado ${actual.saldo.toFixed(2)}`
+          )
+        }
       }
     }
 

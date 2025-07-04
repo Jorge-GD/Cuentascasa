@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createMovimiento } from '@/lib/db/queries'
+import { createMovimiento, getMovimientosByCuenta } from '@/lib/db/queries'
 import type { CategorizedMovimiento } from '@/lib/categorization/engine'
+import { DuplicateDetector } from '@/lib/utils/duplicateDetection'
+import type { MovimientoRaw } from '@/lib/types/parser'
+import { generateMovimientoHash } from '@/lib/utils/movimientoHash'
+import { aplicarCategorizacionInteligente } from '@/lib/utils/categorizacionInteligente'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,19 +49,79 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Aplicar categorización inteligente mejorada para el plan 50/30/20
+    const movimientosConCategorizacionInteligente = aplicarCategorizacionInteligente(
+      movimientos.map(m => ({
+        descripcion: m.descripcion,
+        importe: m.importe,
+        categoria: m.categoriaDetectada,
+        subcategoria: m.subcategoriaDetectada
+      }))
+    );
+
+    // Actualizar movimientos con categorización mejorada
+    const movimientosMejorados = movimientos.map((mov, index) => ({
+      ...mov,
+      categoriaDetectada: movimientosConCategorizacionInteligente[index].categoria || mov.categoriaDetectada,
+      subcategoriaDetectada: movimientosConCategorizacionInteligente[index].subcategoria || mov.subcategoriaDetectada
+    }));
+
+    // Obtener movimientos existentes de la cuenta para detectar duplicados
+    const existingMovimientos = await getMovimientosByCuenta(cuentaId)
+    const detector = new DuplicateDetector(existingMovimientos)
+    
     const importedMovimientos = []
     const errors = []
+    const skippedDuplicates = []
 
     // Importar movimientos uno por uno
-    for (let i = 0; i < movimientos.length; i++) {
-      const movimiento = movimientos[i]
+    for (let i = 0; i < movimientosMejorados.length; i++) {
+      const movimiento = movimientosMejorados[i]
       
       try {
+        // Verificar si es duplicado antes de guardar
+        const movimientoRaw: MovimientoRaw = {
+          fecha: movimiento.fecha,
+          descripcion: movimiento.descripcion,
+          importe: movimiento.importe,
+          saldo: movimiento.saldo || undefined,
+          categoriaING: movimiento.categoriaING,
+          subcategoriaING: movimiento.subcategoriaING
+        }
+        
+        const duplicateResult = detector.detectDuplicate(movimientoRaw)
+        
+        // Si es duplicado con alta confianza (>80%), saltar
+        if (duplicateResult.isDuplicate && duplicateResult.confidence > 80) {
+          skippedDuplicates.push({
+            index: i,
+            movimiento: movimiento.descripcion,
+            confidence: duplicateResult.confidence,
+            reason: duplicateResult.reason,
+            matchedMovimiento: duplicateResult.matchedMovimiento
+          })
+          continue
+        }
+        
+        // Si es posible duplicado (50-80%), incluir advertencia pero permitir importar
+        const isDubiousDuplicate = duplicateResult.isDuplicate && 
+                                  duplicateResult.confidence >= 50 && 
+                                  duplicateResult.confidence <= 80
+        
+        // Generar hash único para el movimiento
+        const hash = generateMovimientoHash(
+          movimiento.fecha,
+          movimiento.importe,
+          movimiento.descripcion,
+          cuentaId
+        )
+        
         const newMovimiento = await createMovimiento({
           fecha: new Date(movimiento.fecha),
           descripcion: movimiento.descripcion,
           importe: movimiento.importe,
           saldo: movimiento.saldo || null,
+          hash: hash,
           categoriaING: movimiento.categoriaING || null,
           subcategoriaING: movimiento.subcategoriaING || null,
           categoria: movimiento.categoriaDetectada || 'Sin categorizar',
@@ -68,14 +132,29 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        importedMovimientos.push(newMovimiento)
+        importedMovimientos.push({
+          ...newMovimiento,
+          warning: isDubiousDuplicate ? duplicateResult.reason : undefined
+        })
       } catch (error) {
         console.error(`Error importing movimiento ${i}:`, error)
-        errors.push({
-          index: i,
-          movimiento: movimiento.descripcion,
-          error: error instanceof Error ? error.message : 'Error desconocido'
-        })
+        
+        // Si es un error de unicidad del hash, es un duplicado exacto
+        if (error instanceof Error && error.message.includes('Unique constraint')) {
+          skippedDuplicates.push({
+            index: i,
+            movimiento: movimiento.descripcion,
+            confidence: 100,
+            reason: 'Movimiento exactamente duplicado (mismo hash)',
+            error: 'Duplicado exacto'
+          })
+        } else {
+          errors.push({
+            index: i,
+            movimiento: movimiento.descripcion,
+            error: error instanceof Error ? error.message : 'Error desconocido'
+          })
+        }
       }
     }
 
@@ -84,6 +163,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         imported: importedMovimientos.length,
+        skipped: skippedDuplicates.length,
         total: movimientos.length,
         errors: errors.length,
         movimientos: importedMovimientos
@@ -94,6 +174,13 @@ export async function POST(request: NextRequest) {
       response.data = {
         ...response.data,
         errorDetails: errors
+      } as any
+    }
+    
+    if (skippedDuplicates.length > 0) {
+      response.data = {
+        ...response.data,
+        skippedDuplicates: skippedDuplicates
       } as any
     }
 

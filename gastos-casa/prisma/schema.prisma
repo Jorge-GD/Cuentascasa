@@ -28,6 +28,9 @@ model Movimiento {
   importe       Float
   saldo         Float?
   
+  // Hash único para prevenir duplicados exactos
+  hash          String?  // Opcional para movimientos existentes
+  
   // Categorías originales de ING
   categoriaING     String?
   subcategoriaING  String?
@@ -50,6 +53,8 @@ model Movimiento {
   @@index([cuentaId, fecha])
   @@index([importe])
   @@index([fechaImportacion])
+  @@index([hash])
+  @@unique([hash, cuentaId])
 }
 
 model Categoria {
@@ -58,6 +63,7 @@ model Categoria {
   color        String
   icono        String?
   presupuesto  Float?   // Presupuesto mensual
+  tipo503020   String?  // "necesidades", "deseos", "ahorro" o null
   
   subcategorias Subcategoria[]
 }
@@ -92,4 +98,34 @@ model Etiqueta {
   color       String
   
   movimientos Movimiento[]
+}
+
+model ConfiguracionUsuario {
+  id                String   @id @default(cuid())
+  ingresoMensual    Float?   // Ingreso neto mensual configurado
+  // Configuración flexible de porcentajes
+  porcentajeNecesidades Float @default(50)  // Por defecto 50%
+  porcentajeDeseos      Float @default(30)  // Por defecto 30%
+  porcentajeAhorro      Float @default(20)  // Por defecto 20%
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  metas             MetaAhorro[]
+}
+
+model MetaAhorro {
+  id                String   @id @default(cuid())
+  nombre            String
+  objetivo          Float    // Cantidad objetivo
+  ahorrado          Float    @default(0) // Cantidad ya ahorrada
+  tipo              String   // "emergencia", "deuda", "meta_personal"
+  prioridad         Int      @default(0)
+  activa            Boolean  @default(true)
+  fechaLimite       DateTime? // Fecha límite opcional
+  recordatorios     Boolean  @default(true) // Enviar recordatorios
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  configuracionId   String
+  configuracion     ConfiguracionUsuario @relation(fields: [configuracionId], references: [id])
 }

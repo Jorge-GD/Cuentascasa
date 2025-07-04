@@ -1,7 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, AlertCircle } from 'lucide-react'
@@ -9,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { CuentaCard } from '@/components/cuentas/cuenta-card'
 import { NoCuentasEmpty } from '@/components/ui/empty-states'
 import { useCuentaStore } from '@/lib/stores/cuentaStore'
+import { useClientCuentaStore } from '@/hooks/use-cuenta-store'
 import { toastUtils } from '@/lib/utils/toast'
 import type { Cuenta } from '@/lib/types/database'
 
@@ -19,14 +18,19 @@ export default function CuentasPage() {
     isLoading, 
     error, 
     fetchCuentas, 
-    deleteCuenta 
-  } = useCuentaStore()
+    deleteCuenta,
+    isHydrated
+  } = useClientCuentaStore()
 
   const [editingCuenta, setEditingCuenta] = useState<Cuenta | null>(null)
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    fetchCuentas()
-  }, [fetchCuentas])
+    setIsClient(true)
+    if (isHydrated) {
+      fetchCuentas()
+    }
+  }, [fetchCuentas, isHydrated])
 
   const handleEdit = (cuenta: Cuenta) => {
     setEditingCuenta(cuenta)
@@ -45,7 +49,8 @@ export default function CuentasPage() {
     }
   }
 
-  if (isLoading) {
+  // Mostrar loading mientras se inicializa el cliente
+  if (!isClient || !isHydrated || isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">

@@ -127,3 +127,6 @@ export function SpendingChart({ data, type = 'line', height = 300 }: SpendingCha
     </ResponsiveContainer>
   )
 }
+
+// Export por defecto para compatibilidad con dynamic imports
+export default SpendingChart

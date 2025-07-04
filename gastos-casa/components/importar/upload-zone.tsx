@@ -7,10 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import type { CategorizedMovimiento } from '@/lib/categorization/engine'
 
+interface UploadResult {
+  movimientos: CategorizedMovimiento[]
+  advertencias?: string[]
+  uploadData?: {type: string, data: FormData}
+}
+
 interface UploadZoneProps {
-  onMovimientosUploaded: (movimientos: CategorizedMovimiento[]) => void
+  onMovimientosUploaded: (result: UploadResult) => void
   isLoading: boolean
   cuentaId: string
 }
@@ -19,6 +27,7 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
   const [textContent, setTextContent] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [uploadMethod, setUploadMethod] = useState<'file' | 'text'>('file')
+  const [disableValidation, setDisableValidation] = useState(false)
 
   const processData = useCallback(async (data: string | File, type: 'pdf' | 'xlsx' | 'text') => {
     setError(null)
@@ -26,6 +35,7 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
     try {
       const formData = new FormData()
       formData.append('cuentaId', cuentaId)
+      formData.append('disableValidation', disableValidation.toString())
       
       if (type === 'pdf' && data instanceof File) {
         formData.append('file', data)
@@ -44,16 +54,22 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
       })
 
       const result = await response.json()
+      console.log('Preview API response:', response.status, result)
 
       if (!result.success) {
+        console.error('Preview API error:', result.error)
         throw new Error(result.error || 'Error al procesar los datos')
       }
 
-      onMovimientosUploaded(result.data.movimientos)
+      onMovimientosUploaded({
+        movimientos: result.data.movimientos,
+        advertencias: result.data.advertencias,
+        uploadData: { type: type, data: formData }
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
     }
-  }, [cuentaId, onMovimientosUploaded])
+  }, [cuentaId, onMovimientosUploaded, disableValidation])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
@@ -122,6 +138,23 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
               </div>
             </div>
           </div>
+          
+          <div className="flex items-center space-x-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <Checkbox 
+              id="disable-validation" 
+              checked={disableValidation}
+              onCheckedChange={(checked) => setDisableValidation(checked as boolean)}
+            />
+            <Label 
+              htmlFor="disable-validation" 
+              className="text-sm cursor-pointer"
+            >
+              <span className="font-medium">Desactivar validación de saldos</span>
+              <span className="text-muted-foreground ml-2">
+                (Usar solo si el archivo está incompleto)
+              </span>
+            </Label>
+          </div>
         </TabsContent>
         
         <TabsContent value="text" className="space-y-4">
@@ -154,6 +187,23 @@ export function UploadZone({ onMovimientosUploaded, isLoading, cuentaId }: Uploa
             >
               {isLoading ? 'Procesando...' : 'Procesar Texto'}
             </Button>
+          </div>
+          
+          <div className="flex items-center space-x-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <Checkbox 
+              id="disable-validation-text" 
+              checked={disableValidation}
+              onCheckedChange={(checked) => setDisableValidation(checked as boolean)}
+            />
+            <Label 
+              htmlFor="disable-validation-text" 
+              className="text-sm cursor-pointer"
+            >
+              <span className="font-medium">Desactivar validación de saldos</span>
+              <span className="text-muted-foreground ml-2">
+                (Usar solo si el archivo está incompleto)
+              </span>
+            </Label>
           </div>
         </TabsContent>
       </Tabs>

@@ -18,18 +18,27 @@ export interface DashboardMetrics {
   ingresoTotal: number
   balance: number
   transacciones: number
+  tasaAhorro: number // Nuevo KPI: (Ingresos - Gastos) / Ingresos * 100
   comparacionMesAnterior: {
     gastos: number
     ingresos: number
     porcentajeGastos: number
     porcentajeIngresos: number
+    tasaAhorro: number // Tasa de ahorro del mes anterior
   }
   proyeccionFinMes: number
+  explicacionProyeccion: string // Nueva explicación de cómo se calcula
   topCategorias: Array<{
     categoria: string
     total: number
     porcentaje: number
     transacciones: number
+    subcategorias?: Array<{
+      nombre: string
+      total: number
+      porcentaje: number
+      transacciones: number
+    }>
   }>
   alertas: Array<{
     tipo: 'presupuesto' | 'gasto_inusual' | 'tendencia'
@@ -175,15 +184,45 @@ export async function getDashboardMetrics(
     .sort((a, b) => b.total - a.total)
     .slice(0, 5)
 
+  // Calcular tasa de ahorro
+  const tasaAhorro = ingresoTotal > 0 ? ((ingresoTotal - gastoTotal) / ingresoTotal) * 100 : 0
+  const tasaAhorroAnterior = ingresosAnterior > 0 ? ((ingresosAnterior - gastosAnterior) / ingresosAnterior) * 100 : 0
+
   // Proyección fin de mes (solo para período mensual)
   let proyeccionFinMes = 0
+  let explicacionProyeccion = 'Proyección no disponible para este período'
+  
   if (periodo === 'mes') {
-    const diasTranscurridos = Math.ceil((now.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24))
-    const diasTotales = Math.ceil((fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24))
+    // Obtener el saldo más reciente
+    const movimientoMasReciente = await prisma.movimiento.findFirst({
+      where: { cuentaId },
+      orderBy: { fecha: 'desc' }
+    })
     
-    if (diasTranscurridos > 0) {
-      const gastoDiarioPromedio = gastoTotal / diasTranscurridos
-      proyeccionFinMes = gastoDiarioPromedio * diasTotales
+    if (movimientoMasReciente && movimientoMasReciente.saldo !== null) {
+      const saldoActual = movimientoMasReciente.saldo
+      
+      const diasTranscurridos = Math.max(1, Math.ceil((now.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24)))
+      const diasRestantes = Math.ceil((fechaFin.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      
+      if (diasTranscurridos > 0 && diasRestantes > 0) {
+        // Calcular promedio diario de gastos e ingresos
+        const gastoDiarioPromedio = gastoTotal / diasTranscurridos
+        const ingresoDiarioPromedio = ingresoTotal / diasTranscurridos
+        
+        // Proyectar para los días restantes
+        const gastosProyectados = gastoDiarioPromedio * diasRestantes
+        const ingresosProyectados = ingresoDiarioPromedio * diasRestantes
+        
+        // Proyección del saldo = Saldo actual + Ingresos proyectados - Gastos proyectados
+        proyeccionFinMes = saldoActual + ingresosProyectados - gastosProyectados
+        
+        explicacionProyeccion = `Basada en saldo actual (${saldoActual.toFixed(2)}€) + promedio diario de ingresos (${ingresoDiarioPromedio.toFixed(2)}€) - gastos (${gastoDiarioPromedio.toFixed(2)}€) proyectados para ${diasRestantes} días restantes`
+      } else {
+        // Si ya estamos al final del mes, usar el saldo actual
+        proyeccionFinMes = saldoActual
+        explicacionProyeccion = 'Saldo actual del fin de mes'
+      }
     }
   }
 
@@ -211,13 +250,16 @@ export async function getDashboardMetrics(
     ingresoTotal,
     balance,
     transacciones: movimientos.length,
+    tasaAhorro,
     comparacionMesAnterior: {
       gastos: gastosAnterior,
       ingresos: ingresosAnterior,
       porcentajeGastos,
-      porcentajeIngresos
+      porcentajeIngresos,
+      tasaAhorro: tasaAhorroAnterior
     },
     proyeccionFinMes,
+    explicacionProyeccion,
     topCategorias,
     alertas
   }
@@ -303,6 +345,116 @@ export async function getTrendAnalysis(
     datos,
     promedios
   }
+}
+
+export async function getDetailedCategoryAnalysis(
+  cuentaId: string,
+  periodo: string = 'mes'
+): Promise<DashboardMetrics['topCategorias']> {
+  const now = new Date()
+  let fechaInicio: Date
+  let fechaFin: Date
+
+  switch (periodo) {
+    case 'trimestre':
+      fechaInicio = startOfMonth(subMonths(now, 2))
+      fechaFin = endOfMonth(now)
+      break
+    case 'año':
+      fechaInicio = startOfYear(now)
+      fechaFin = endOfYear(now)
+      break
+    default: // mes
+      fechaInicio = startOfMonth(now)
+      fechaFin = endOfMonth(now)
+  }
+
+  // Obtener movimientos con categorías y subcategorías
+  const movimientos = await prisma.movimiento.findMany({
+    where: {
+      cuentaId,
+      fecha: {
+        gte: fechaInicio,
+        lte: fechaFin
+      },
+      importe: { lt: 0 } // Solo gastos
+    },
+    include: {
+      etiquetas: true // Para obtener las subcategorías si están en etiquetas
+    }
+  })
+
+  const gastoTotal = Math.abs(movimientos.reduce((sum, m) => sum + m.importe, 0))
+
+  // Agrupar por categoría
+  const categoriaStats = movimientos.reduce((acc, mov) => {
+    const categoria = mov.categoria
+    if (!acc[categoria]) {
+      acc[categoria] = { 
+        total: 0, 
+        count: 0, 
+        subcategorias: {} as Record<string, { total: number; count: number }>
+      }
+    }
+    
+    const amount = Math.abs(mov.importe)
+    acc[categoria].total += amount
+    acc[categoria].count += 1
+
+    // Procesar subcategorías - priorizar subcategoria del movimiento sobre etiquetas
+    const subcategoria = mov.subcategoria || 'General'
+    if (!acc[categoria].subcategorias[subcategoria]) {
+      acc[categoria].subcategorias[subcategoria] = { total: 0, count: 0 }
+    }
+    acc[categoria].subcategorias[subcategoria].total += amount
+    acc[categoria].subcategorias[subcategoria].count += 1
+
+    // También procesar etiquetas como subcategorías adicionales si existen
+    if (mov.etiquetas && mov.etiquetas.length > 0) {
+      mov.etiquetas.forEach(etiqueta => {
+        const etiquetaSubcategoria = etiqueta.nombre
+        // Solo agregar si es diferente a la subcategoría principal
+        if (etiquetaSubcategoria !== subcategoria) {
+          if (!acc[categoria].subcategorias[etiquetaSubcategoria]) {
+            acc[categoria].subcategorias[etiquetaSubcategoria] = { total: 0, count: 0 }
+          }
+          acc[categoria].subcategorias[etiquetaSubcategoria].total += amount
+          acc[categoria].subcategorias[etiquetaSubcategoria].count += 1
+        }
+      })
+    }
+
+    return acc
+  }, {} as Record<string, { 
+    total: number; 
+    count: number; 
+    subcategorias: Record<string, { total: number; count: number }>
+  }>)
+
+  // Convertir a formato de respuesta
+  const categoriesWithSubcategories = Object.entries(categoriaStats)
+    .map(([categoria, stats]) => {
+      const subcategorias = Object.entries(stats.subcategorias)
+        .map(([subcat, substats]) => ({
+          nombre: subcat,
+          total: substats.total,
+          porcentaje: stats.total > 0 ? (substats.total / stats.total) * 100 : 0,
+          transacciones: substats.count
+        }))
+        .sort((a, b) => b.total - a.total)
+
+      return {
+        categoria,
+        total: stats.total,
+        porcentaje: gastoTotal > 0 ? (stats.total / gastoTotal) * 100 : 0,
+        transacciones: stats.count,
+        subcategorias
+      }
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8) // Aumentamos a 8 categorías principales
+
+  return categoriesWithSubcategories
 }
 
 export async function getAccountComparison(

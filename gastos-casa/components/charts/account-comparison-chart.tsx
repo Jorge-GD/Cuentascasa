@@ -213,3 +213,6 @@ export const AccountComparisonChart = memo(AccountComparisonChartComponent, (pre
            cuenta.balance === nextCuenta.balance
   })
 })
+
+// Export por defecto para compatibilidad con dynamic imports
+export default AccountComparisonChart

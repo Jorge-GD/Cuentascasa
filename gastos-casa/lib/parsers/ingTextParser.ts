@@ -6,7 +6,7 @@ export class INGTextParser {
 
   constructor(config: Partial<ParserConfig> = {}) {
     this.config = {
-      tolerarErroresFormato: true,
+      tolerarErroresFormato: true, // Cambiar a true por defecto
       ignorarDuplicados: false,
       validarSaldos: true,
       ...config
@@ -38,6 +38,11 @@ export class INGTextParser {
       // Parsear movimientos según el formato detectado
       const movimientosParsed = this.parsearSegunFormato(textoLimpio, formatoDetectado)
       movimientos.push(...movimientosParsed)
+
+      // Validar saldos si está habilitado
+      if (this.config.validarSaldos && movimientos.length > 1) {
+        this.validarSaldos(movimientos, errores)
+      }
 
       // Extraer metadata
       const metadata = this.extraerMetadata(textoLimpio)
@@ -265,17 +270,31 @@ export class INGTextParser {
   }
 
   private convertirImporte(importeStr: string): number {
-    const numeroStr = importeStr
-      .replace(/"/g, '') // Quitar comillas
-      .replace(/\./g, '') // Quitar separadores de miles
-      .replace(',', '.') // Cambiar coma decimal por punto
+    const numeroStr = importeStr.replace(/"/g, '').trim()
+
+    // Formato español: 1.234,56
+    if (numeroStr.includes(',')) {
+      const cleanStr = numeroStr.replace(/\./g, '').replace(',', '.')
+      const num = parseFloat(cleanStr)
+      if (!isNaN(num)) return num
+    }
+
+    // Formato ambiguo con puntos: 1.500 (mil quinientos) vs 1.500 (uno punto cinco)
+    const dotIndex = numeroStr.lastIndexOf('.')
+    if (dotIndex !== -1 && numeroStr.length - dotIndex - 1 === 3 && !numeroStr.includes(',')) {
+      const pointParts = numeroStr.split('.')
+      if (pointParts.length > 1) {
+        const cleanStr = numeroStr.replace(/\./g, '')
+        const num = parseFloat(cleanStr)
+        if (!isNaN(num)) return num
+      }
+    }
     
-    const numero = parseFloat(numeroStr)
-    
+    // Fallback para formato americano (1,234.56) o entero
+    const numero = parseFloat(numeroStr.replace(/,/g, ''))
     if (isNaN(numero)) {
       throw new Error(`Importe inválido: ${importeStr}`)
     }
-    
     return numero
   }
 
@@ -334,6 +353,81 @@ export class INGTextParser {
     metadata.totalMovimientos = lineasMovimiento.length
 
     return metadata
+  }
+
+  private validarSaldos(movimientos: MovimientoRaw[], errores: string[]): void {
+    // Ordenar movimientos por fecha para validación secuencial
+    const movimientosOrdenados = [...movimientos].sort((a, b) => 
+      new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    )
+
+    const inconsistencias: Array<{
+      indice: number
+      fecha: string
+      descripcion: string
+      saldoAnterior: number
+      importe: number
+      saldoEsperado: number
+      saldoReal: number
+      diferencia: number
+    }> = []
+
+    for (let i = 1; i < movimientosOrdenados.length; i++) {
+      const anterior = movimientosOrdenados[i - 1]
+      const actual = movimientosOrdenados[i]
+
+      // Solo validar si ambos saldos son válidos (no 0 por defecto)
+      if (anterior.saldo !== 0 && actual.saldo !== 0) {
+        const saldoCalculado = anterior.saldo + actual.importe
+        const diferencia = Math.abs(saldoCalculado - actual.saldo)
+
+        // Aumentar tolerancia para manejar errores de redondeo y pequeñas inconsistencias
+        if (diferencia > 0.02) { // Tolerancia de 2 céntimos
+          inconsistencias.push({
+            indice: i + 1,
+            fecha: new Date(actual.fecha).toLocaleDateString('es-ES'),
+            descripcion: actual.descripcion.substring(0, 50) + (actual.descripcion.length > 50 ? '...' : ''),
+            saldoAnterior: anterior.saldo,
+            importe: actual.importe,
+            saldoEsperado: saldoCalculado,
+            saldoReal: actual.saldo,
+            diferencia
+          })
+        }
+      }
+    }
+
+    if (inconsistencias.length > 0) {
+      // Mostrar resumen inicial
+      errores.push(`🔍 VALIDACIÓN DE SALDOS - Se encontraron ${inconsistencias.length} inconsistencias:`)
+      
+      // Agrupar por tipo de diferencia
+      const menores = inconsistencias.filter(inc => inc.diferencia <= 1.00)
+      const mayores = inconsistencias.filter(inc => inc.diferencia > 1.00)
+      
+      if (mayores.length > 0) {
+        errores.push(`❌ ERRORES GRAVES (diferencia > 1€): ${mayores.length}`)
+        mayores.slice(0, 10).forEach(inc => {
+          errores.push(`   • Mov ${inc.indice} (${inc.fecha}): ${inc.descripcion} | Esperado: ${inc.saldoEsperado.toFixed(2)}€ | Real: ${inc.saldoReal.toFixed(2)}€ | Diff: ${inc.diferencia.toFixed(2)}€`)
+        })
+        if (mayores.length > 10) {
+          errores.push(`   ... y ${mayores.length - 10} errores graves más`)
+        }
+      }
+      
+      if (menores.length > 0) {
+        errores.push(`⚠️ ADVERTENCIAS MENORES (diferencia ≤ 1€): ${menores.length}`)
+        menores.slice(0, 5).forEach(inc => {
+          errores.push(`   • Mov ${inc.indice} (${inc.fecha}): ${inc.descripcion} | Diff: ${inc.diferencia.toFixed(2)}€`)
+        })
+        if (menores.length > 5) {
+          errores.push(`   ... y ${menores.length - 5} advertencias menores más`)
+        }
+      }
+      
+      // Añadir explicación
+      errores.push(`💡 POSIBLES CAUSAS: Movimientos faltantes, errores en el archivo original, o períodos parciales`)
+    }
   }
 }
 
